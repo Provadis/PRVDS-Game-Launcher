@@ -9,7 +9,9 @@
   import ArtPicker from "./ArtPicker.svelte";
   import Cover from "./Cover.svelte";
   import Icon from "./Icon.svelte";
+  import PlaytimePanel from "./PlaytimePanel.svelte";
   import TagEditor from "./TagEditor.svelte";
+  import TrackingPanel from "./TrackingPanel.svelte";
 
   let { id }: { id: number } = $props();
   let game = $derived(app.byId.get(id));
@@ -175,6 +177,10 @@
         <div><dt>Starts</dt><dd>{game.playCount}</dd></div>
       </dl>
     </div>
+    <div class="cols">
+      <PlaytimePanel {game} />
+      <TrackingPanel {game} />
+    </div>
     {#if game.summary}
       <section class="panel">
         <h2>Über das Spiel</h2>
@@ -232,6 +238,13 @@
   }
   .top {
     margin-top: 180px;
+  }
+  .cols {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 28px;
+    align-items: start;
   }
   .summary {
     margin: 0;
