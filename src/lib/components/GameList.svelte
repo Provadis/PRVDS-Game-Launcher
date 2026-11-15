@@ -21,10 +21,10 @@
   </thead>
   <tbody>
     {#each games as g (g.id)}
-      <tr onclick={() => (app.screen = { kind: "detail", id: g.id })}>
+      <tr onclick={() => (app.openGame(g.id))}>
         <td class="thumb"><Cover game={g} showBadge={false} radius={6} /></td>
         <td class="c-name">
-          <button class="link" onclick={(e) => { e.stopPropagation(); app.screen = { kind: "detail", id: g.id }; }}>
+          <button class="link" onclick={(e) => { e.stopPropagation(); app.openGame(g.id); }}>
             {#if g.favorite}<span class="fav" aria-label="Favorit">★</span>{/if}{g.name}
           </button>
           {#if !g.installed}<span class="tags">Nicht installiert</span>{:else if g.tags.length}<span class="tags">{g.tags.join(" · ")}</span>{/if}

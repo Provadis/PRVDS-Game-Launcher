@@ -33,6 +33,8 @@ class AppState {
   tags = $state<string[]>([]);
   running = $state<number[]>([]);
   screen = $state<Screen>({ kind: "library" });
+  /** Where the back button of a game's page leads. */
+  back = $state<Screen>({ kind: "library" });
   source = $state<Source>({ kind: "all" });
   query = $state<GameQuery>(emptyQuery());
   layout = $state<Layout>({ mode: "grid", coverSize: 200 });
@@ -64,6 +66,19 @@ class AppState {
     const [collections, tags] = await Promise.all([api.listCollections(), api.listTags()]);
     this.collections = collections;
     this.tags = tags;
+  }
+
+  /** Opens a game's page and remembers where it was opened from. */
+  openGame(id: number) {
+    if (this.screen.kind !== "detail") this.back = this.screen;
+    this.screen = { kind: "detail", id };
+  }
+
+  /** Back from a game's page to where it was opened from. */
+  goBack() {
+    const b = this.back;
+    const gone = b.kind === "board" && !this.boards.some((x) => x.id === b.id);
+    this.screen = gone ? { kind: "library" } : b;
   }
 
   upsert(game: Game) {

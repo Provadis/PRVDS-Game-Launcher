@@ -309,7 +309,7 @@
                           <Cover game={g} showBadge={false} radius={10} />
                           <button class="remove" onclick={() => setSlot(f, col, row, null)} aria-label="{g.name} aus dem Feld nehmen" title="Entfernen"><Icon name="close" size={14} /></button>
                         {:else}
-                          <button class="open" onclick={() => (app.screen = { kind: "detail", id: g.id })} aria-label="{g.name} öffnen" title={g.name}>
+                          <button class="open" onclick={() => (app.openGame(g.id))} aria-label="{g.name} öffnen" title={g.name}>
                             <Cover game={g} showBadge={false} radius={10} />
                           </button>
                           <button class="play" onclick={() => app.launch(g.id)} aria-label="{g.name} spielen" title="Spielen">

@@ -21,7 +21,7 @@
       </span>
     </div>
     <div class="actions">
-      <button class="btn big" onclick={() => (app.screen = { kind: "detail", id: game.id })}>Details</button>
+      <button class="btn big" onclick={() => (app.openGame(game.id))}>Details</button>
       <button class="btn big primary" onclick={() => app.launch(game.id)}>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z" /></svg>
         Spielen

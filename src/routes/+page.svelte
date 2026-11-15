@@ -43,7 +43,7 @@
           } else {
             app.toast(`${name}: Spielzeit konnte nicht gemessen werden. Trag in den Spieldetails die Exe ein.`, "error", {
               label: "Öffnen",
-              run: () => (app.screen = { kind: "detail", id: ev.gameId }),
+              run: () => (app.openGame(ev.gameId)),
             });
           }
         }

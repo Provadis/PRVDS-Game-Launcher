@@ -22,6 +22,13 @@
   let refreshing = $state(false);
   let hero = $derived(game?.heroPath ? convertFileSrc(game.heroPath) : null);
   let colors = $derived(placeholderColors(game?.name ?? ""));
+  let backLabel = $derived.by(() => {
+    const b = app.back;
+    if (b.kind === "board") return app.boards.find((x) => x.id === b.id)?.name ?? "Bibliothek";
+    if (b.kind === "settings") return "Einstellungen";
+    if (b.kind === "import") return "Import";
+    return "Bibliothek";
+  });
 
   // Drop an image file anywhere on the page to use it as cover.
   const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
@@ -96,7 +103,7 @@
       try {
         await api.removeGame(game.id);
         app.remove(game.id);
-        app.screen = { kind: "library" };
+        app.goBack();
         app.toast(`„${game.name}“ entfernt`);
       } catch (e) {
         app.error(e);
@@ -107,7 +114,7 @@
     try {
       const path = await api.undoImport(game.id);
       app.remove(game.id);
-      app.screen = { kind: "library" };
+      app.goBack();
       app.toast(`Verknüpfung wiederhergestellt: ${path}`);
     } catch (e) {
       app.error(e);
@@ -123,8 +130,8 @@
       {#if hero}<img src={hero} alt="" />{/if}
       <div class="fade"></div>
     </div>
-    <button class="btn back" onclick={() => (app.screen = { kind: "library" })}>
-      <Icon name="chevronLeft" />Bibliothek
+    <button class="btn back" onclick={() => app.goBack()}>
+      <Icon name="chevronLeft" />{backLabel}
     </button>
     <div class="top">
       <button class="cover" onclick={() => (picker = "cover")} title="Cover ändern" aria-label="Cover ändern">
