@@ -1,7 +1,9 @@
 <script lang="ts">
   import { app } from "$lib/state.svelte";
   import GameGrid from "./GameGrid.svelte";
+  import GameList from "./GameList.svelte";
   import Icon from "./Icon.svelte";
+  import Toolbar from "./Toolbar.svelte";
 
   let title = $derived.by(() => {
     switch (app.source.kind) {
@@ -37,14 +39,15 @@
       </button>
     </section>
   {:else}
-    <div class="toolbar">
-      <h2>{title}</h2>
-      <span class="muted">{app.visible.length} Spiele</span>
-    </div>
+    <Toolbar {title} count={app.visible.length} />
     {#if app.visible.length}
-      <GameGrid games={app.visible} size={app.layout.coverSize} />
+      {#if app.layout.mode === "list"}
+        <GameList games={app.visible} />
+      {:else}
+        <GameGrid games={app.visible} size={app.layout.coverSize} />
+      {/if}
     {:else if app.loaded}
-      <p class="muted">Keine Spiele für diese Ansicht.</p>
+      <p class="muted">Keine Spiele für diese Ansicht und diese Filter.</p>
     {/if}
   {/if}
 </main>
@@ -58,16 +61,6 @@
     display: flex;
     flex-direction: column;
     gap: 28px;
-  }
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-  .toolbar h2 {
-    font-size: 28px;
-    font-weight: 600;
   }
   .welcome {
     margin: auto;

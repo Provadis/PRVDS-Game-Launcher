@@ -19,6 +19,12 @@
     <button class="item" class:active={isActive({ kind: "all" })} onclick={() => app.selectSource({ kind: "all" })}>
       <Icon name="grid" />Alle Spiele<span class="count">{app.games.filter((g) => !g.hidden).length}</span>
     </button>
+    <button class="item" class:active={isActive({ kind: "recent" })} onclick={() => app.selectSource({ kind: "recent" })}>
+      <Icon name="clock" />Zuletzt gespielt
+    </button>
+    <button class="item" class:active={isActive({ kind: "favorites" })} onclick={() => app.selectSource({ kind: "favorites" })}>
+      <Icon name="star" />Favoriten<span class="count">{app.games.filter((g) => g.favorite && !g.hidden).length}</span>
+    </button>
   </div>
 
   <div class="bottom">
