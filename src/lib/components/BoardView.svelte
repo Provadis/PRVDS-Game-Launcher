@@ -463,6 +463,10 @@
     position: relative;
     z-index: 1;
   }
+  /* Above the game list, so the background picker can reach over it. */
+  .board-screen > main {
+    z-index: 2;
+  }
   .bg-wrap {
     position: relative;
   }
