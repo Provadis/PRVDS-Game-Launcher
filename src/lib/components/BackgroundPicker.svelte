@@ -24,6 +24,29 @@
   ];
   let busy = $state(false);
 
+  // Fixed to the window, below its button, so a narrow window or the
+  // scrolling board can't cut it off.
+  function place(node: HTMLElement) {
+    const update = () => {
+      const anchor = node.parentElement?.getBoundingClientRect();
+      if (!anchor) return;
+      const left = Math.max(16, Math.min(anchor.left, window.innerWidth - node.offsetWidth - 16));
+      const top = anchor.bottom + 8;
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
+      node.style.maxHeight = `${Math.max(200, window.innerHeight - top - 16)}px`;
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return {
+      destroy() {
+        window.removeEventListener("resize", update);
+        window.removeEventListener("scroll", update, true);
+      },
+    };
+  }
+
   function set(patch: Partial<BoardBackground>) {
     const base: BoardBackground = value ?? { kind: "preset", value: "aurora", align: "center", dim: 35 };
     onchange({ ...base, ...patch });
@@ -48,7 +71,7 @@
   }
 </script>
 
-<div class="picker" role="dialog" aria-label={t("Hintergrund")}>
+<div class="picker" use:place role="dialog" aria-label={t("Hintergrund")}>
   <header>
     <h3>{t("Hintergrund")}</h3>
     <button class="icon-btn" onclick={onclose} aria-label={t("Schließen")}><Icon name="close" size={16} /></button>
@@ -89,10 +112,9 @@
 
 <style>
   .picker {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    z-index: 20;
+    position: fixed;
+    z-index: 40;
+    overflow-y: auto;
     width: 420px;
     max-width: calc(100vw - 32px);
     padding: 16px;
