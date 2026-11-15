@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { app } from "./state.svelte";
+import { t } from "./i18n.svelte";
 
 function read(key: string): string | null {
   try {
@@ -43,8 +44,8 @@ export async function tidyDesktop(quiet = false) {
     if (tidied.length && !quiet) {
       app.toast(
         tidied.length === 1
-          ? `Desktop-Verknüpfung von „${tidied[0].name}“ weggeräumt`
-          : `${tidied.length} Desktop-Verknüpfungen weggeräumt`,
+          ? t("Desktop-Verknüpfung von „{name}“ weggeräumt", { name: tidied[0].name })
+          : t("{n} Desktop-Verknüpfungen weggeräumt", { n: tidied.length }),
       );
     }
     return tidied.length;
@@ -65,8 +66,8 @@ export async function syncOnStart() {
       const n = r.uninstalled.length;
       app.toast(
         n === 1
-          ? `„${r.uninstalled[0].name}“ ist nicht mehr installiert.`
-          : `${n} Spiele sind nicht mehr installiert.`,
+          ? t("„{name}“ ist nicht mehr installiert.", { name: r.uninstalled[0].name })
+          : t("{n} Spiele sind nicht mehr installiert.", { n }),
       );
     }
     // Only speak up when there is more than last time, so games the user
@@ -79,9 +80,11 @@ export async function syncOnStart() {
     }
     if (r.newGames > before) {
       app.toast(
-        r.newGames === 1 ? "1 neues Spiel in deinen Launchern gefunden" : `${r.newGames} neue Spiele in deinen Launchern gefunden`,
+        r.newGames === 1
+          ? t("1 neues Spiel in deinen Launchern gefunden")
+          : t("{n} neue Spiele in deinen Launchern gefunden", { n: r.newGames }),
         "info",
-        { label: "Ansehen", run: () => (app.screen = { kind: "import", from: "launchers" }) },
+        { label: t("Ansehen"), run: () => (app.screen = { kind: "import", from: "launchers" }) },
       );
     }
   } catch {

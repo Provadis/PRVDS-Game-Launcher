@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { app } from "./state.svelte";
 import type { UpdateChannel } from "./types";
+import { t } from "./i18n.svelte";
 
 // Per-device preferences; losing them only resets to the defaults.
 function read(key: string): string | null {
@@ -41,8 +42,8 @@ export async function checkOnStart() {
   try {
     const r = await api.checkUpdate(updateChannel());
     if (r.update) {
-      app.toast(`Update auf Version ${r.update.version} verfügbar`, "info", {
-        label: "Ansehen",
+      app.toast(t("Update auf Version {v} verfügbar", { v: r.update.version }), "info", {
+        label: t("Ansehen"),
         run: () => (app.screen = { kind: "settings" }),
       });
     }

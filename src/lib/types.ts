@@ -1,3 +1,5 @@
+import { t } from "./i18n.svelte";
+
 export type Platform = "steam" | "epic" | "ubisoft" | "ea" | "battlenet" | "riot" | "other";
 
 export const PLATFORMS: { id: Platform; label: string }[] = [
@@ -11,7 +13,7 @@ export const PLATFORMS: { id: Platform; label: string }[] = [
 ];
 
 export function platformLabel(p: Platform): string {
-  return PLATFORMS.find((x) => x.id === p)?.label ?? p;
+  return t(PLATFORMS.find((x) => x.id === p)?.label ?? p);
 }
 
 export type GameSource = "desktop" | "connector";

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
   import NameDialog from "./NameDialog.svelte";
@@ -28,7 +29,7 @@
       const v = await api.saveView(id, name, definition);
       app.views = id ? app.views.map((x) => (x.id === v.id ? v : x)) : [...app.views, v];
       app.source = { kind: "view", id: v.id };
-      app.toast(`Ansicht „${v.name}“ gespeichert`);
+      app.toast(t("Ansicht „{name}“ gespeichert", { name: v.name }));
     } catch (e) {
       app.error(e);
     }
@@ -37,19 +38,19 @@
   let title = $derived.by(() => {
     switch (app.source.kind) {
       case "favorites":
-        return "Favoriten";
+        return t("Favoriten");
       case "recent":
-        return "Zuletzt gespielt";
+        return t("Zuletzt gespielt");
       case "collection": {
         const id = app.source.id;
-        return app.collections.find((c) => c.id === id)?.name ?? "Sammlung";
+        return app.collections.find((c) => c.id === id)?.name ?? t("Sammlung");
       }
       case "view": {
         const id = app.source.id;
-        return app.views.find((v) => v.id === id)?.name ?? "Ansicht";
+        return app.views.find((v) => v.id === id)?.name ?? t("Ansicht");
       }
       default:
-        return "Alle Spiele";
+        return t("Alle Spiele");
     }
   });
 </script>
@@ -58,16 +59,15 @@
   {#if app.loaded && app.games.length === 0}
     <section class="welcome">
       <span class="logo"><Icon name="gamepad" size={40} /></span>
-      <h1>Willkommen in deinem Game Space</h1>
+      <h1>{t("Willkommen in deinem Game Space")}</h1>
       <p class="muted">
-        Lies deinen Desktop oder deine Launcher ein, wähle deine Spiele aus und räume die Verknüpfungen in die Bibliothek. Du kannst
-        jedes Spiel jederzeit wieder zurück auf den Desktop legen.
+        {t("Lies deinen Desktop oder deine Launcher ein, wähle deine Spiele aus und räume die Verknüpfungen in die Bibliothek. Du kannst jedes Spiel jederzeit wieder zurück auf den Desktop legen.")}
       </p>
       <button class="btn big primary" onclick={() => (app.screen = { kind: "import" })}>
-        <Icon name="download" />Desktop einlesen
+        <Icon name="download" />{t("Desktop einlesen")}
       </button>
       <button class="btn big" onclick={() => (app.screen = { kind: "import", from: "launchers" })}>
-        <Icon name="layers" />Aus Launchern einlesen
+        <Icon name="layers" />{t("Aus Launchern einlesen")}
       </button>
     </section>
   {:else}
@@ -80,25 +80,25 @@
         <GameGrid games={app.visible} size={app.layout.coverSize} />
       {/if}
     {:else if app.loaded}
-      <p class="muted">Keine Spiele für diese Ansicht und diese Filter.</p>
+      <p class="muted">{t("Keine Spiele für diese Ansicht und diese Filter.")}</p>
     {/if}
   {/if}
 </main>
 
 {#if saving}
   <NameDialog
-    title="Ansicht speichern"
-    label="Name der Ansicht"
+    title={t("Ansicht speichern")}
+    label={t("Name der Ansicht")}
     initial={currentView?.name ?? ""}
     onsubmit={saveView}
     onclose={() => (saving = false)}>
     {#snippet extra()}
       {#if currentView}
         <label class="overwrite">
-          <input type="checkbox" bind:checked={overwrite} />„{currentView.name}“ überschreiben
+          <input type="checkbox" bind:checked={overwrite} />{t("„{name}“ überschreiben", { name: currentView.name })}
         </label>
       {:else}
-        <p class="muted hint">Speichert Filter, Sortierung und Layout. Die Ansicht erscheint links in der Seitenleiste.</p>
+        <p class="muted hint">{t("Speichert Filter, Sortierung und Layout. Die Ansicht erscheint links in der Seitenleiste.")}</p>
       {/if}
     {/snippet}
   </NameDialog>

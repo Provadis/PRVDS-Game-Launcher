@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { app } from "$lib/state.svelte";
   import { formatPlaytime, placeholderColors, relativeDay } from "$lib/format";
@@ -9,22 +10,22 @@
   let hero = $derived(game.heroPath ? convertFileSrc(game.heroPath) : null);
 </script>
 
-<section class="hero" aria-label="Weiterspielen" style="--a: {colors[0]}; --b: {colors[1]}">
+<section class="hero" aria-label={t("Weiterspielen")} style="--a: {colors[0]}; --b: {colors[1]}">
   {#if hero}<img src={hero} alt="" />{/if}
   <div class="shade"></div>
   <div class="content">
     <div class="text">
-      <span class="eyebrow">Weiterspielen</span>
+      <span class="eyebrow">{t("Weiterspielen")}</span>
       <h1>{game.name}</h1>
       <span class="meta">
-        {relativeDay(game.lastPlayed)} · {formatPlaytime(game.playtimeSecs)} gespielt · {platformLabel(game.platform)}
+        {relativeDay(game.lastPlayed)} · {t("{time} gespielt", { time: formatPlaytime(game.playtimeSecs) })} · {platformLabel(game.platform)}
       </span>
     </div>
     <div class="actions">
-      <button class="btn big" onclick={() => (app.openGame(game.id))}>Details</button>
+      <button class="btn big" onclick={() => (app.openGame(game.id))}>{t("Details")}</button>
       <button class="btn big primary" onclick={() => app.launch(game.id)}>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z" /></svg>
-        Spielen
+        {t("Spielen")}
       </button>
     </div>
   </div>

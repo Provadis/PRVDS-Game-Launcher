@@ -33,6 +33,7 @@ Filtern, eigenen Ansichten und Spielzeitmessung.
 - **Cover und Infos:** automatisch über Steam, optional SteamGridDB und IGDB. Eigene Bilder gehen per Drag & Drop.
 - **Spielzeit:** erkennt, wann ein Spiel läuft, auch wenn es über Steam, eine Verknüpfung oder schon vor der App gestartet wurde, und zeigt Sitzungen und Verlauf.
 - **Updates:** sucht auf Wunsch beim Start nach neuen Versionen (Kanäle „Stabil“ und „Dev“). Die Updates sind signiert.
+- **Sprache:** Deutsch oder Englisch, umschaltbar in den Einstellungen. Beim ersten Start gilt die Windows-Sprache.
 
 | Spiel-Detail | Import-Assistent |
 |---|---|

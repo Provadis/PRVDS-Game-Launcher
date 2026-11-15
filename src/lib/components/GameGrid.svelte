@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { app } from "$lib/state.svelte";
   import { formatPlaytime, relativeDay } from "$lib/format";
   import type { Game } from "$lib/types";
@@ -7,9 +8,9 @@
   let { games, size = 200 }: { games: Game[]; size?: number } = $props();
 
   function meta(g: Game) {
-    if (app.running.includes(g.id)) return "Läuft gerade";
-    if (!g.installed) return "Nicht installiert";
-    if (!g.lastPlayed) return "Noch nicht gespielt";
+    if (app.running.includes(g.id)) return t("Läuft gerade");
+    if (!g.installed) return t("Nicht installiert");
+    if (!g.lastPlayed) return t("Noch nicht gespielt");
     return `${formatPlaytime(g.playtimeSecs)} · ${relativeDay(g.lastPlayed)}`;
   }
 </script>
@@ -24,15 +25,15 @@
         e.dataTransfer?.setData("application/x-game-id", String(g.id));
         e.dataTransfer?.setData("text/plain", g.name);
       }}>
-      <button class="cover-btn" onclick={() => (app.openGame(g.id))} aria-label="{g.name} öffnen">
+      <button class="cover-btn" onclick={() => (app.openGame(g.id))} aria-label={t("{name} öffnen", { name: g.name })}>
         <Cover game={g} />
       </button>
-      <button class="play" onclick={() => app.launch(g.id)} aria-label="{g.name} spielen" title="Spielen">
+      <button class="play" onclick={() => app.launch(g.id)} aria-label={t("{name} spielen", { name: g.name })} title={t("Spielen")}>
         <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z" /></svg>
       </button>
       <div class="info">
         <span class="name" title={g.name}>
-          {#if g.favorite}<span class="fav" aria-label="Favorit">★</span>{/if}{g.name}
+          {#if g.favorite}<span class="fav" aria-label={t("Favorit")}>★</span>{/if}{g.name}
         </span>
         <span class="meta" class:running={app.running.includes(g.id)}>{meta(g)}</span>
       </div>

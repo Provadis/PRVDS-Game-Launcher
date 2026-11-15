@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
+  import { formatDuration } from "$lib/format";
   import "../app.css";
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
@@ -32,17 +34,17 @@
       listen<Game>("game-updated", (e) => app.upsert(e.payload)),
       listen<TrackerEvent>("tracker", (e) => {
         const ev = e.payload;
-        const name = app.byId.get(ev.gameId)?.name ?? "Spiel";
+        const name = app.byId.get(ev.gameId)?.name ?? t("Spiel");
         if (ev.type === "started") {
           if (!app.running.includes(ev.gameId)) app.running.push(ev.gameId);
         } else {
           app.running = app.running.filter((id) => id !== ev.gameId);
           if (ev.type === "ended") {
             const mins = Math.max(1, Math.round((ev.endedAt - ev.startedAt) / 60));
-            app.toast(`${name}: ${mins >= 60 ? `${Math.floor(mins / 60)} Std. ${mins % 60} Min.` : `${mins} Min.`} gespielt`);
+            app.toast(t("{name}: {time} gespielt", { name, time: formatDuration(mins * 60) }));
           } else {
-            app.toast(`${name}: Spielzeit konnte nicht gemessen werden. Trag in den Spieldetails die Exe ein.`, "error", {
-              label: "Öffnen",
+            app.toast(t("{name}: Spielzeit konnte nicht gemessen werden. Trag in den Spieldetails die Exe ein.", { name }), "error", {
+              label: t("Öffnen"),
               run: () => (app.openGame(ev.gameId)),
             });
           }

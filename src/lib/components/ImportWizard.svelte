@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { onMount } from "svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
@@ -45,22 +46,21 @@
       for (const g of report.imported) app.upsert(g);
       if (report.failed.length) {
         app.toast(
-          `${report.failed.length} Verknüpfung(en) konnten nicht verschoben werden: ${report.failed[0].error}`,
+          t("{n} Verknüpfung(en) konnten nicht verschoben werden: {error}", { n: report.failed.length, error: report.failed[0].error }),
           "error",
         );
       }
       if (report.imported.length) {
         app.toast(
-          `${report.imported.length} Spiele in deinen Game Space verschoben. Cover werden geladen …`,
+          t("{n} Spiele in deinen Game Space verschoben. Cover werden geladen …", { n: report.imported.length }),
         );
       }
       if (report.keptOnDesktop.length) {
         const n = report.keptOnDesktop.length;
         app.toast(
-          (n === 1
-            ? `„${report.keptOnDesktop[0]}“ liegt auf dem öffentlichen Desktop. Die Verknüpfung wurde kopiert und bleibt dort`
-            : `${n} Spiele liegen auf dem öffentlichen Desktop. Die Verknüpfungen wurden kopiert und bleiben dort`) +
-            ", denn zum Entfernen braucht Windows Admin-Rechte.",
+          n === 1
+            ? t("„{name}“ liegt auf dem öffentlichen Desktop. Die Verknüpfung wurde kopiert und bleibt dort, denn zum Entfernen braucht Windows Admin-Rechte.", { name: report.keptOnDesktop[0] })
+            : t("{n} Spiele liegen auf dem öffentlichen Desktop. Die Verknüpfungen wurden kopiert und bleiben dort, denn zum Entfernen braucht Windows Admin-Rechte.", { n }),
         );
       }
       app.selectSource({ kind: "all" });
@@ -76,42 +76,42 @@
 
 <div class="wizard">
   <header>
-    <button class="btn icon" onclick={() => (app.screen = { kind: "library" })} aria-label="Schließen">
+    <button class="btn icon" onclick={() => (app.screen = { kind: "library" })} aria-label={t("Schließen")}>
       <Icon name="close" size={20} />
     </button>
     <div class="head">
-      <h1>Spiele vom Desktop importieren</h1>
+      <h1>{t("Spiele vom Desktop importieren")}</h1>
       <span class="muted">
-        {#if scanning}Desktop wird eingelesen …{:else}{candidates.length} Verknüpfungen gefunden in {desktop}{/if}
+        {#if scanning}{t("Desktop wird eingelesen …")}{:else}{t("{n} Verknüpfungen gefunden in {dir}", { n: candidates.length, dir: desktop })}{/if}
       </span>
       <ImportTabs current="desktop" />
     </div>
     <ol class="steps">
-      <li class="done"><span class="dot"><Icon name="check" size={14} stroke={3} /></span>Desktop scannen</li>
+      <li class="done"><span class="dot"><Icon name="check" size={14} stroke={3} /></span>{t("Desktop scannen")}</li>
       <li class="line" aria-hidden="true"></li>
-      <li class="current" aria-current="step"><span class="dot">2</span>Spiele auswählen</li>
+      <li class="current" aria-current="step"><span class="dot">2</span>{t("Spiele auswählen")}</li>
       <li class="line" aria-hidden="true"></li>
-      <li><span class="dot">3</span>In Game Space verschieben</li>
+      <li><span class="dot">3</span>{t("In Game Space verschieben")}</li>
     </ol>
   </header>
 
   <div class="body scroll">
     {#if !scanning && candidates.length === 0}
       <div class="empty">
-        <h2>Keine Verknüpfungen gefunden</h2>
-        <p class="muted">Auf deinem Desktop liegen keine .lnk-, .url- oder .exe-Dateien.</p>
-        <button class="btn" onclick={scan}><Icon name="refresh" />Erneut scannen</button>
+        <h2>{t("Keine Verknüpfungen gefunden")}</h2>
+        <p class="muted">{t("Auf deinem Desktop liegen keine .lnk-, .url- oder .exe-Dateien.")}</p>
+        <button class="btn" onclick={scan}><Icon name="refresh" />{t("Erneut scannen")}</button>
       </div>
     {/if}
 
     {#if games.length}
       <section>
         <div class="section-head">
-          <h2>Erkannte Spiele</h2>
-          <span class="muted">nach Plattform und Speicherort erkannt</span>
+          <h2>{t("Erkannte Spiele")}</h2>
+          <span class="muted">{t("nach Plattform und Speicherort erkannt")}</span>
           <span class="spacer"></span>
-          <button class="btn" onclick={() => setAll(games, true)}>Alle auswählen</button>
-          <button class="btn" onclick={() => setAll(candidates, false)}>Auswahl leeren</button>
+          <button class="btn" onclick={() => setAll(games, true)}>{t("Alle auswählen")}</button>
+          <button class="btn" onclick={() => setAll(candidates, false)}>{t("Auswahl leeren")}</button>
         </div>
         <div class="items">
           {#each games as c (c.path)}
@@ -124,8 +124,8 @@
     {#if others.length}
       <section>
         <div class="section-head">
-          <h2>Wahrscheinlich keine Spiele</h2>
-          <span class="muted">bleiben auf dem Desktop, außer du wählst sie aus</span>
+          <h2>{t("Wahrscheinlich keine Spiele")}</h2>
+          <span class="muted">{t("bleiben auf dem Desktop, außer du wählst sie aus")}</span>
         </div>
         <div class="items">
           {#each others as c (c.path)}
@@ -138,13 +138,13 @@
 
   <footer>
     <div class="summary">
-      <strong>{count} von {candidates.length} ausgewählt</strong>
-      <span class="muted"><Icon name="undo" size={15} />Die Verknüpfungen werden in den Bibliotheksordner verschoben. Rückgängig jederzeit möglich.</span>
+      <strong>{t("{n} von {total} ausgewählt", { n: count, total: candidates.length })}</strong>
+      <span class="muted"><Icon name="undo" size={15} />{t("Die Verknüpfungen werden in den Bibliotheksordner verschoben. Rückgängig jederzeit möglich.")}</span>
     </div>
     <span class="spacer"></span>
-    <button class="btn big" onclick={() => (app.screen = { kind: "library" })}>Abbrechen</button>
+    <button class="btn big" onclick={() => (app.screen = { kind: "library" })}>{t("Abbrechen")}</button>
     <button class="btn big primary" disabled={!count || importing} onclick={doImport}>
-      {importing ? "Wird verschoben …" : `${count} verschieben`}
+      {importing ? t("Wird verschoben …") : t("{n} verschieben", { n: count })}
       <Icon name="arrowRight" />
     </button>
   </footer>

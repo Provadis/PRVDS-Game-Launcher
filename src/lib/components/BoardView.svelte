@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { untrack } from "svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
@@ -166,7 +167,7 @@
     while (ids.has(`f${n}`)) n++;
     const bottom = Math.max(0, ...draft.fields.map((f) => Math.ceil(rect(f).b / STEP) + 1));
     const collection = app.collections.find((c) => c.id === collectionId);
-    const field: BoardField = { id: `f${n}`, title: collection?.name ?? "Neues Feld", x: 0, y: bottom, cols: 4, rows: 1, slots: [], collectionId: collection?.id ?? null };
+    const field: BoardField = { id: `f${n}`, title: collection?.name ?? t("Neues Feld"), x: 0, y: bottom, cols: 4, rows: 1, slots: [], collectionId: collection?.id ?? null };
     if (collection) field.cols = Math.min(Math.max(1, collectionGames(field).length), 8);
     draft.fields.push(field);
   }
@@ -187,7 +188,7 @@
 
   function removeField(f: BoardField) {
     if (!draft) return;
-    if (f.collectionId == null && f.slots.length && !confirm(`Feld „${f.title || "ohne Titel"}“ mit ${f.slots.length} Spielen entfernen?`)) return;
+    if (f.collectionId == null && f.slots.length && !confirm(t("Feld „{name}“ mit {n} Spielen entfernen?", { name: f.title || t("ohne Titel"), n: f.slots.length }))) return;
     draft.fields = draft.fields.filter((x) => x.id !== f.id);
   }
 
@@ -307,49 +308,49 @@
     <main class="scroll" bind:clientWidth={mainW}>
       <div class="bar">
         {#if draft}
-          <input class="name-input" bind:value={draft.name} aria-label="Name des Boards" />
-          <span class="badge">Bearbeiten</span>
+          <input class="name-input" bind:value={draft.name} aria-label={t("Name des Boards")} />
+          <span class="badge">{t("Bearbeiten")}</span>
           <span class="spacer"></span>
-          <button class="btn" onclick={() => addField()}><Icon name="plus" size={16} />Feld hinzufügen</button>
+          <button class="btn" onclick={() => addField()}><Icon name="plus" size={16} />{t("Feld hinzufügen")}</button>
           {#if app.collections.length}
             <select
               class="input collection-pick"
-              aria-label="Sammlung als Feld hinzufügen"
+              aria-label={t("Sammlung als Feld hinzufügen")}
               onchange={(e) => {
                 const v = Number(e.currentTarget.value);
                 e.currentTarget.value = "";
                 if (v) addField(v);
               }}>
-              <option value="">Sammlung als Feld …</option>
+              <option value="">{t("Sammlung als Feld …")}</option>
               {#each app.collections as c (c.id)}
                 <option value={c.id}>{c.name}</option>
               {/each}
             </select>
           {/if}
           <span class="bg-wrap">
-            <button class="btn" class:active={pickingBg} onclick={() => (pickingBg = !pickingBg)}><Icon name="image" size={16} />Hintergrund</button>
+            <button class="btn" class:active={pickingBg} onclick={() => (pickingBg = !pickingBg)}><Icon name="image" size={16} />{t("Hintergrund")}</button>
             {#if pickingBg}
               <BackgroundPicker value={draft.background ?? null} onchange={(bg) => draft && (draft.background = bg)} onclose={() => (pickingBg = false)} />
             {/if}
           </span>
-          <button class="btn" onclick={cancel}>Abbrechen</button>
-          <button class="btn primary" onclick={save} disabled={saving || !draft.name.trim()}>{saving ? "Speichert …" : "Fertig"}</button>
+          <button class="btn" onclick={cancel}>{t("Abbrechen")}</button>
+          <button class="btn primary" onclick={save} disabled={saving || !draft.name.trim()}>{saving ? t("Speichert …") : t("Fertig")}</button>
         {:else}
           <h1>{shown.name}</h1>
-          <span class="muted">{shown.fields.length} {shown.fields.length === 1 ? "Feld" : "Felder"} · {filled} {filled === 1 ? "Platz" : "Plätze"} belegt</span>
+          <span class="muted">{shown.fields.length === 1 ? t("1 Feld") : t("{n} Felder", { n: shown.fields.length })} · {filled === 1 ? t("1 Platz belegt") : t("{n} Plätze belegt", { n: filled })}</span>
           <span class="spacer"></span>
-          <button class="btn" onclick={startEdit}><Icon name="edit" size={16} />Bearbeiten</button>
+          <button class="btn" onclick={startEdit}><Icon name="edit" size={16} />{t("Bearbeiten")}</button>
         {/if}
       </div>
 
       {#if editing}
-        <p class="muted hint">Spiele aus der Liste rechts in einen Platz ziehen, Felder am Griff verschieben und an der Ecke größer ziehen. Leere Plätze bleiben als Lücke.</p>
+        <p class="muted hint">{t("Spiele aus der Liste rechts in einen Platz ziehen, Felder am Griff verschieben und an der Ecke größer ziehen. Leere Plätze bleiben als Lücke.")}</p>
       {/if}
 
       {#if !shown.fields.length && !editing}
         <div class="empty">
-          <p class="muted">Dieses Board ist noch leer.</p>
-          <button class="btn primary" onclick={() => { startEdit(); addField(); }}><Icon name="plus" size={16} />Erstes Feld anlegen</button>
+          <p class="muted">{t("Dieses Board ist noch leer.")}</p>
+          <button class="btn primary" onclick={() => { startEdit(); addField(); }}><Icon name="plus" size={16} />{t("Erstes Feld anlegen")}</button>
         </div>
       {/if}
 
@@ -359,20 +360,20 @@
             class="field"
             class:dragging={dragging?.id === f.id}
             class:blocked={dragging?.id === f.id && dragging.blocked}
-            style="left: {f.x * STEP}px; top: {f.y * STEP}px; width: {fieldW(f)}px; height: {fieldH(f)}px{washOf(f) ? `; background-image: ${washOf(f)}` : ''}" aria-label={f.title || "Feld"}>
+            style="left: {f.x * STEP}px; top: {f.y * STEP}px; width: {fieldW(f)}px; height: {fieldH(f)}px{washOf(f) ? `; background-image: ${washOf(f)}` : ''}" aria-label={f.title || t("Feld")}>
             <header>
               {#if editing}
-                <button class="handle" onpointerdown={(e) => startDrag(e, f, "move")} aria-label="Feld verschieben" title="Verschieben">
+                <button class="handle" onpointerdown={(e) => startDrag(e, f, "move")} aria-label={t("Feld verschieben")} title={t("Verschieben")}>
                   <Icon name="grip" size={18} />
                 </button>
-                <input class="title-input" bind:value={f.title} placeholder="Titel" aria-label="Titel des Felds" />
-                {#if f.collectionId != null}<span class="badge small" title="Zeigt die Spiele der Sammlung von selbst">Sammlung{collectionName(f) ? `: ${collectionName(f)}` : " (gelöscht)"}</span>{/if}
+                <input class="title-input" bind:value={f.title} placeholder={t("Titel")} aria-label={t("Titel des Felds")} />
+                {#if f.collectionId != null}<span class="badge small" title={t("Zeigt die Spiele der Sammlung von selbst")}>{collectionName(f) ? t("Sammlung: {name}", { name: collectionName(f) ?? "" }) : t("Sammlung (gelöscht)")}</span>{/if}
                 <span class="muted size">{f.cols} × {f.rows}</span>
-                <button class="icon-btn" onclick={() => removeField(f)} aria-label="Feld entfernen" title="Feld entfernen"><Icon name="trash" size={15} /></button>
+                <button class="icon-btn" onclick={() => removeField(f)} aria-label={t("Feld entfernen")} title={t("Feld entfernen")}><Icon name="trash" size={15} /></button>
               {:else}
                 <h2>{f.title}</h2>
                 {@const n = placed(f).length}
-                <span class="muted">{n} {n === 1 ? "Spiel" : "Spiele"}</span>
+                <span class="muted">{n === 1 ? t("1 Spiel") : t("{n} Spiele", { n })}</span>
               {/if}
             </header>
             <div class="slots" class:scrolls={scrolls(f)} use:sideScroll style="grid-template-columns: repeat({gridCols(f)}, var(--cw)); grid-template-rows: repeat({f.rows}, var(--ch))">
@@ -400,12 +401,12 @@
                           <Cover game={g} showBadge={false} radius={10} />
                         {:else if editing}
                           <Cover game={g} showBadge={false} radius={10} />
-                          <button class="remove" onclick={() => setSlot(f, col, row, null)} aria-label="{g.name} aus dem Feld nehmen" title="Entfernen"><Icon name="close" size={14} /></button>
+                          <button class="remove" onclick={() => setSlot(f, col, row, null)} aria-label={t("{name} aus dem Feld nehmen", { name: g.name })} title={t("Entfernen")}><Icon name="close" size={14} /></button>
                         {:else}
-                          <button class="open" onclick={() => (app.openGame(g.id))} aria-label="{g.name} öffnen" title={g.name}>
+                          <button class="open" onclick={() => (app.openGame(g.id))} aria-label={t("{name} öffnen", { name: g.name })} title={g.name}>
                             <Cover game={g} showBadge={false} radius={10} />
                           </button>
-                          <button class="play" onclick={() => app.launch(g.id)} aria-label="{g.name} spielen" title="Spielen">
+                          <button class="play" onclick={() => app.launch(g.id)} aria-label={t("{name} spielen", { name: g.name })} title={t("Spielen")}>
                             <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z" /></svg>
                           </button>
                         {/if}
@@ -418,7 +419,7 @@
               {/each}
             </div>
             {#if editing}
-              <button class="resize" onpointerdown={(e) => startDrag(e, f, "resize")} aria-label="Feldgröße ändern" title="Größe ändern"></button>
+              <button class="resize" onpointerdown={(e) => startDrag(e, f, "resize")} aria-label={t("Feldgröße ändern")} title={t("Größe ändern")}></button>
             {/if}
           </section>
         {/each}
@@ -428,12 +429,12 @@
     {#if editing}
       <aside
         class="pool"
-        aria-label="Spiele"
+        aria-label={t("Spiele")}
         ondragover={(e) => e.dataTransfer?.types.includes(SLOT_MIME) && e.preventDefault()}
         ondrop={dropOnPool}>
-        <h2>Spiele</h2>
-        <input class="input" type="search" placeholder="Suchen …" bind:value={search} />
-        <p class="muted small">Ein Spiel darf in mehreren Feldern und Boards stehen. Zum Entfernen hierher zurückziehen.</p>
+        <h2>{t("Spiele")}</h2>
+        <input class="input" type="search" placeholder={t("Suchen …")} bind:value={search} />
+        <p class="muted small">{t("Ein Spiel darf in mehreren Feldern und Boards stehen. Zum Entfernen hierher zurückziehen.")}</p>
         <ul class="scroll">
           {#each pool as g (g.id)}
             <li draggable="true" ondragstart={(e) => dragGame(e, g.id)}>
@@ -446,7 +447,7 @@
     {/if}
   </div>
 {:else}
-  <main class="scroll"><p class="muted">Dieses Board gibt es nicht mehr.</p></main>
+  <main class="scroll"><p class="muted">{t("Dieses Board gibt es nicht mehr.")}</p></main>
 {/if}
 
 <style>

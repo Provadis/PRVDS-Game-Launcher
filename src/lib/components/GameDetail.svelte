@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
@@ -24,10 +25,10 @@
   let colors = $derived(placeholderColors(game?.name ?? ""));
   let backLabel = $derived.by(() => {
     const b = app.back;
-    if (b.kind === "board") return app.boards.find((x) => x.id === b.id)?.name ?? "Bibliothek";
-    if (b.kind === "settings") return "Einstellungen";
-    if (b.kind === "import") return "Import";
-    return "Bibliothek";
+    if (b.kind === "board") return app.boards.find((x) => x.id === b.id)?.name ?? t("Bibliothek");
+    if (b.kind === "settings") return t("Einstellungen");
+    if (b.kind === "import") return t("Import");
+    return t("Bibliothek");
   });
 
   // Drop an image file anywhere on the page to use it as cover.
@@ -53,7 +54,7 @@
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       app.upsert(await api.setArtFromBytes(game.id, "cover", file.name, bytes));
-      app.toast("Cover übernommen");
+      app.toast(t("Cover übernommen"));
     } catch (err) {
       app.error(err);
     }
@@ -65,7 +66,7 @@
     refreshing = true;
     try {
       app.upsert(await api.refreshMetadata(game.id));
-      app.toast("Infos aktualisiert");
+      app.toast(t("Infos aktualisiert"));
     } catch (e) {
       app.error(e);
     } finally {
@@ -99,23 +100,23 @@
     menuOpen = false;
     if (!game) return;
     if (game.source === "connector" || !game.journalId) {
-      if (!confirm(`„${game.name}“ aus der Bibliothek entfernen? Das Spiel bleibt installiert, Spielzeit und Tags gehen verloren.${game.journalId ? " Die Desktop-Verknüpfung kommt zurück." : ""}`)) return;
+      if (!confirm(t("„{name}“ aus der Bibliothek entfernen? Das Spiel bleibt installiert, Spielzeit und Tags gehen verloren.", { name: game.name }) + (game.journalId ? " " + t("Die Desktop-Verknüpfung kommt zurück.") : ""))) return;
       try {
         await api.removeGame(game.id);
         app.remove(game.id);
         app.goBack();
-        app.toast(`„${game.name}“ entfernt`);
+        app.toast(t("„{name}“ entfernt", { name: game.name }));
       } catch (e) {
         app.error(e);
       }
       return;
     }
-    if (!confirm(`„${game.name}“ zurück auf den Desktop legen und aus der Bibliothek entfernen?`)) return;
+    if (!confirm(t("„{name}“ zurück auf den Desktop legen und aus der Bibliothek entfernen?", { name: game.name }))) return;
     try {
       const path = await api.undoImport(game.id);
       app.remove(game.id);
       app.goBack();
-      app.toast(`Verknüpfung wiederhergestellt: ${path}`);
+      app.toast(t("Verknüpfung wiederhergestellt: {path}", { path }));
     } catch (e) {
       app.error(e);
     }
@@ -134,9 +135,9 @@
       <Icon name="chevronLeft" />{backLabel}
     </button>
     <div class="top">
-      <button class="cover" onclick={() => (picker = "cover")} title="Cover ändern" aria-label="Cover ändern">
+      <button class="cover" onclick={() => (picker = "cover")} title={t("Cover ändern")} aria-label={t("Cover ändern")}>
         <Cover {game} radius={18} />
-        <span class="cover-hint"><Icon name="image" size={16} />{dropping ? "Bild hier ablegen" : "Cover ändern"}</span>
+        <span class="cover-hint"><Icon name="image" size={16} />{dropping ? t("Bild hier ablegen") : t("Cover ändern")}</span>
       </button>
       <div class="info">
         <div class="pills">
@@ -144,15 +145,15 @@
           {#if game.genre}<span class="pill">{game.genre}</span>{/if}
           {#if game.releaseYear}<span class="pill">{game.releaseYear}</span>{/if}
           {#if game.developer}<span class="pill">{game.developer}</span>{/if}
-          {#if game.hidden}<span class="pill warn">Versteckt</span>{/if}
+          {#if game.hidden}<span class="pill warn">{t("Versteckt")}</span>{/if}
         </div>
         {#if renaming}
           <form class="rename" onsubmit={saveRename}>
-            <label class="sr-only" for="rename">Name</label>
+            <label class="sr-only" for="rename">{t("Name")}</label>
             <!-- svelte-ignore a11y_autofocus -->
             <input id="rename" class="input" bind:value={nameDraft} autofocus />
-            <button class="btn primary" type="submit">Speichern</button>
-            <button class="btn" type="button" onclick={() => (renaming = false)}>Abbrechen</button>
+            <button class="btn primary" type="submit">{t("Speichern")}</button>
+            <button class="btn" type="button" onclick={() => (renaming = false)}>{t("Abbrechen")}</button>
           </form>
         {:else}
           <h1>{game.name}</h1>
@@ -160,20 +161,20 @@
         <div class="actions">
           <button class="btn big primary" onclick={() => app.launch(game.id)}>
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z" /></svg>
-            {app.running.includes(game.id) ? "Läuft gerade" : "Spielen"}
+            {app.running.includes(game.id) ? t("Läuft gerade") : t("Spielen")}
           </button>
           <button
             class="btn big icon fav"
             class:on={game.favorite}
             onclick={() => patch({ favorite: !game.favorite })}
-            aria-label={game.favorite ? "Aus Favoriten entfernen" : "Zu Favoriten"}
+            aria-label={game.favorite ? t("Aus Favoriten entfernen") : t("Zu Favoriten")}
             aria-pressed={game.favorite}>
             <Icon name="star" size={22} fill={game.favorite} />
           </button>
           <div class="menu-wrap">
             <button
               class="btn big icon"
-              aria-label="Mehr Optionen"
+              aria-label={t("Mehr Optionen")}
               aria-expanded={menuOpen}
               onclick={(e) => {
                 e.stopPropagation();
@@ -181,15 +182,15 @@
               }}><Icon name="more" size={22} stroke={3} /></button>
             {#if menuOpen}
               <div class="menu" role="menu">
-                <button role="menuitem" onclick={startRename}><Icon name="edit" />Umbenennen</button>
-                <button role="menuitem" onclick={() => { picker = "cover"; menuOpen = false; }}><Icon name="image" />Cover ändern</button>
-                <button role="menuitem" onclick={() => { picker = "hero"; menuOpen = false; }}><Icon name="image" />Hintergrundbild ändern</button>
-                <button role="menuitem" onclick={refresh} disabled={refreshing}><Icon name="refresh" />Infos neu laden</button>
+                <button role="menuitem" onclick={startRename}><Icon name="edit" />{t("Umbenennen")}</button>
+                <button role="menuitem" onclick={() => { picker = "cover"; menuOpen = false; }}><Icon name="image" />{t("Cover ändern")}</button>
+                <button role="menuitem" onclick={() => { picker = "hero"; menuOpen = false; }}><Icon name="image" />{t("Hintergrundbild ändern")}</button>
+                <button role="menuitem" onclick={refresh} disabled={refreshing}><Icon name="refresh" />{t("Infos neu laden")}</button>
                 <button role="menuitem" onclick={() => patch({ hidden: !game.hidden })}>
-                  <Icon name={game.hidden ? "eye" : "eyeOff"} />{game.hidden ? "Wieder anzeigen" : "Verstecken"}
+                  <Icon name={game.hidden ? "eye" : "eyeOff"} />{game.hidden ? t("Wieder anzeigen") : t("Verstecken")}
                 </button>
                 <button role="menuitem" class="danger" onclick={undo}>
-                  <Icon name={game.source === "desktop" && game.journalId ? "undo" : "trash"} />{game.source === "desktop" && game.journalId ? "Zurück auf den Desktop" : "Aus Bibliothek entfernen"}
+                  <Icon name={game.source === "desktop" && game.journalId ? "undo" : "trash"} />{game.source === "desktop" && game.journalId ? t("Zurück auf den Desktop") : t("Aus Bibliothek entfernen")}
                 </button>
               </div>
             {/if}
@@ -197,9 +198,9 @@
         </div>
       </div>
       <dl class="stats">
-        <div><dt>Spielzeit</dt><dd>{formatPlaytime(game.playtimeSecs)}</dd></div>
-        <div><dt>Zuletzt gespielt</dt><dd>{relativeDay(game.lastPlayed)}</dd></div>
-        <div><dt>Starts</dt><dd>{game.playCount}</dd></div>
+        <div><dt>{t("Spielzeit")}</dt><dd>{formatPlaytime(game.playtimeSecs)}</dd></div>
+        <div><dt>{t("Zuletzt gespielt")}</dt><dd>{relativeDay(game.lastPlayed)}</dd></div>
+        <div><dt>{t("Starts")}</dt><dd>{game.playCount}</dd></div>
       </dl>
     </div>
     <div class="cols">
@@ -208,17 +209,17 @@
     </div>
     {#if game.summary}
       <section class="panel">
-        <h2>Über das Spiel</h2>
+        <h2>{t("Über das Spiel")}</h2>
         <p class="summary">{game.summary}</p>
       </section>
     {/if}
     <div class="cols">
       <section class="panel">
-        <h2>Sammlungen</h2>
+        <h2>{t("Sammlungen")}</h2>
         <CollectionsPanel {game} />
       </section>
       <section class="panel">
-        <h2>Tags</h2>
+        <h2>{t("Tags")}</h2>
         <TagEditor {game} />
       </section>
     </div>

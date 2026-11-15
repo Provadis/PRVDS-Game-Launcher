@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { untrack } from "svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
@@ -14,7 +15,7 @@
     e.preventDefault();
     try {
       app.upsert(await api.updateGame(game.id, { installDir: dir.trim() || null, processExe: exe.trim() || null }));
-      app.toast("Gespeichert");
+      app.toast(t("Gespeichert"));
     } catch (err) {
       app.error(err);
     }
@@ -22,26 +23,25 @@
 </script>
 
 <form class="panel" onsubmit={save}>
-  <h2>Details</h2>
+  <h2>{t("Details")}</h2>
   <dl>
-    <dt>Start über</dt>
+    <dt>{t("Start über")}</dt>
     <dd>{game.launchTarget ?? game.shortcutPath}</dd>
-    <dt>Verknüpfung</dt>
+    <dt>{t("Verknüpfung")}</dt>
     <dd>{game.shortcutPath}</dd>
     {#if game.originalPath}
-      <dt>Ursprünglich</dt>
+      <dt>{t("Ursprünglich")}</dt>
       <dd>{game.originalPath}</dd>
     {/if}
   </dl>
   <p class="muted">
-    Für die Spielzeitmessung sucht der Launcher nach dem Start einen Prozess aus dem Installationsordner oder mit dem
-    Namen der Exe. Wird ein Spiel nicht erkannt, trag hier den Ordner oder die Exe ein.
+    {t("Für die Spielzeitmessung sucht der Launcher nach dem Start einen Prozess aus dem Installationsordner oder mit dem Namen der Exe. Wird ein Spiel nicht erkannt, trag hier den Ordner oder die Exe ein.")}
   </p>
   <div class="two">
-    <label><span>Installationsordner</span><input class="input" bind:value={dir} placeholder="z. B. D:\SteamLibrary\steamapps\common\Valheim" /></label>
-    <label><span>Exe des Spiels</span><input class="input" bind:value={exe} placeholder="z. B. valheim.exe" /></label>
+    <label><span>{t("Installationsordner")}</span><input class="input" bind:value={dir} placeholder={t("z. B. {example}", { example: "D:\\SteamLibrary\\steamapps\\common\\Valheim" })} /></label>
+    <label><span>{t("Exe des Spiels")}</span><input class="input" bind:value={exe} placeholder={t("z. B. {example}", { example: "valheim.exe" })} /></label>
   </div>
-  <div><button class="btn" type="submit" disabled={!dirty}>Speichern</button></div>
+  <div><button class="btn" type="submit" disabled={!dirty}>{t("Speichern")}</button></div>
 </form>
 
 <style>

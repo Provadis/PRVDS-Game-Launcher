@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
   import type { Game } from "$lib/types";
@@ -24,7 +25,7 @@
     </button>
   {/each}
   {#if !app.collections.length}
-    <span class="muted">Noch keine Sammlungen. Leg links in der Seitenleiste eine an.</span>
+    <span class="muted">{t("Noch keine Sammlungen. Leg links in der Seitenleiste eine an.")}</span>
   {/if}
 </div>
 
