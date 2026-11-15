@@ -4,7 +4,7 @@
   import { app } from "$lib/state.svelte";
   import type { Settings, UpdateChannel, UpdateCheck } from "$lib/types";
   import { autoCheckUpdates, setAutoCheckUpdates, setUpdateChannel, updateChannel } from "$lib/updates";
-  import { setSyncLaunchersOnStart, syncLaunchersOnStart } from "$lib/launchers";
+  import { setSyncLaunchersOnStart, setTidyDesktopShortcuts, syncLaunchersOnStart, tidyDesktop, tidyDesktopShortcuts } from "$lib/launchers";
   import Icon from "./Icon.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -94,8 +94,11 @@
   }
 
   async function restoreAll() {
-    if (!confirm("Wirklich ALLE Verknüpfungen zurück auf den Desktop legen? Die Bibliothek wird dabei geleert.")) return;
+    if (!confirm("Wirklich ALLE Verknüpfungen zurück auf den Desktop legen? Desktop-Spiele werden dabei aus der Bibliothek entfernt.")) return;
     restoring = true;
+    // Otherwise the next start would tidy the launcher shortcuts away again.
+    tidy = false;
+    setTidyDesktopShortcuts(false);
     try {
       const r = await api.restoreAll();
       await app.load();
@@ -108,6 +111,17 @@
     }
   }
   let syncLaunchers = $state(syncLaunchersOnStart());
+  let tidy = $state(tidyDesktopShortcuts());
+  let tidying = $state(false);
+
+  async function changeTidy() {
+    setTidyDesktopShortcuts(tidy);
+    if (!tidy) return;
+    tidying = true;
+    const n = await tidyDesktop(true);
+    tidying = false;
+    app.toast(n ? `${n} Desktop-Verknüpfungen weggeräumt. Positionen sind gemerkt.` : "Keine passenden Desktop-Verknüpfungen gefunden.");
+  }
 </script>
 
 <main class="scroll">
@@ -179,6 +193,14 @@
       <input type="checkbox" bind:checked={syncLaunchers} onchange={() => setSyncLaunchersOnStart(syncLaunchers)} />
       <span>Beim Start nach neuen und deinstallierten Spielen suchen</span>
     </label>
+    <label class="check">
+      <input type="checkbox" bind:checked={tidy} onchange={changeTidy} disabled={tidying} />
+      <span>Desktop-Verknüpfungen importierter Spiele entfernen</span>
+    </label>
+    <p class="muted small">
+      Verknüpfungen von Spielen aus den Launchern wandern wie beim Desktop-Import in den App-Ordner, inklusive Position.
+      „Alle zurück auf den Desktop“ legt sie wieder an ihren alten Platz.
+    </p>
     <div class="row">
       <button class="btn" onclick={() => (app.screen = { kind: "import", from: "launchers" })}><Icon name="layers" size={16} />Spiele aus Launchern einlesen</button>
     </div>
@@ -203,7 +225,7 @@
 
   <section class="panel">
     <h2>Alles rückgängig machen</h2>
-    <p class="muted">Legt alle importierten Verknüpfungen zurück auf den Desktop und entfernt die Spiele aus der Bibliothek.</p>
+    <p class="muted">Legt alle importierten Verknüpfungen zurück auf den Desktop und entfernt die Spiele aus der Bibliothek. Spiele aus den Launchern bleiben in der Bibliothek, nur ihre Verknüpfungen kommen zurück.</p>
     <div class="row">
       <button class="btn danger" onclick={restoreAll} disabled={restoring}><Icon name="undo" size={16} />Alle zurück auf den Desktop</button>
     </div>
@@ -271,6 +293,10 @@
   .channels {
     display: flex;
     gap: 8px;
+  }
+  .small {
+    font-size: 13px;
+    margin: -4px 0 0 30px;
   }
   .check {
     flex-direction: row;

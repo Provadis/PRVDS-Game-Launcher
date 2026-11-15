@@ -178,6 +178,21 @@ impl Library {
         Ok(())
     }
 
+    /// Links (or unlinks) a launcher game with the journal entry of its
+    /// desktop shortcut, so the shortcut can be put back later.
+    pub fn set_desktop_shortcut(
+        &self,
+        id: i64,
+        journal_id: Option<&str>,
+        original_path: Option<&str>,
+    ) -> Result<()> {
+        self.conn.execute(
+            "UPDATE games SET journal_id = ?2, original_path = ?3 WHERE id = ?1",
+            params![id, journal_id, original_path],
+        )?;
+        Ok(())
+    }
+
     /// Fills in store data a launcher knows and the game lacks (a desktop
     /// import without platform id, say). Never overwrites what is set.
     pub fn fill_store_info(

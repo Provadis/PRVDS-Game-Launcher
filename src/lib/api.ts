@@ -34,6 +34,7 @@ export const api = {
   launchGame: (id: number) => invoke<Game>("launch_game", { id }),
   runningGames: () => invoke<number[]>("running_games"),
   sessions: (id: number) => invoke<Session[]>("sessions", { id }),
+  tidyDesktop: () => invoke<Game[]>("tidy_desktop"),
   removeGame: (id: number) => invoke<void>("remove_game", { id }),
   undoImport: (id: number) => invoke<string>("undo_import", { id }),
   restoreAll: () => invoke<{ restored: number; failed: { path: string; error: string }[] }>("restore_all"),

@@ -136,6 +136,14 @@ pub fn drop_store_duplicates(games: Vec<InstalledGame>) -> Vec<InstalledGame> {
     stores
 }
 
+/// Whether a desktop shortcut starts this (launcher) game: same store id,
+/// else the same name.
+pub fn shortcut_matches(c: &crate::scanner::Candidate, g: &Game) -> bool {
+    let same_id = c.platform == g.platform
+        && matches!((&c.platform_id, &g.platform_id), (Some(a), Some(b)) if a.eq_ignore_ascii_case(b));
+    same_id || (c.likely_game && normalize_name(&c.title) == normalize_name(&g.name))
+}
+
 fn program_data() -> PathBuf {
     std::env::var_os("ProgramData")
         .map(PathBuf::from)
@@ -673,6 +681,76 @@ mod tests {
         let games = steam_games(&[root]);
         assert_eq!(games.len(), 1);
         assert_eq!(games[0].name, "Baldur's Gate 3");
+    }
+
+    #[test]
+    fn desktop_shortcut_matches_launcher_game() {
+        use crate::scanner::{Candidate, ShortcutInfo, ShortcutKind};
+        let cand = |title: &str, platform, id: Option<&str>, likely| Candidate {
+            path: format!("C:/Users/x/Desktop/{title}.url"),
+            file_name: format!("{title}.url"),
+            title: title.into(),
+            kind: ShortcutKind::Url,
+            info: ShortcutInfo::default(),
+            platform,
+            platform_id: id.map(Into::into),
+            likely_game: likely,
+        };
+        let mut g = crate::model::Game {
+            id: 1,
+            name: "ELDEN RING".into(),
+            platform: Platform::Steam,
+            platform_id: Some("1245620".into()),
+            shortcut_path: String::new(),
+            original_path: None,
+            journal_id: None,
+            launch_target: None,
+            launch_args: None,
+            source: crate::model::GameSource::Connector,
+            installed: true,
+            install_dir: None,
+            process_exe: None,
+            cover_path: None,
+            hero_path: None,
+            added_at: 0,
+            last_played: None,
+            play_count: 0,
+            playtime_secs: 0,
+            favorite: false,
+            hidden: false,
+            genre: None,
+            release_year: None,
+            developer: None,
+            summary: None,
+            tags: vec![],
+            collections: vec![],
+        };
+        assert!(shortcut_matches(
+            &cand(
+                "Elden Ring Shortcut",
+                Platform::Steam,
+                Some("1245620"),
+                true
+            ),
+            &g
+        ));
+        assert!(shortcut_matches(
+            &cand("Elden Ring", Platform::Other, None, true),
+            &g
+        ));
+        assert!(!shortcut_matches(
+            &cand("Elden Ring", Platform::Other, None, false),
+            &g
+        ));
+        assert!(!shortcut_matches(
+            &cand("Hades II", Platform::Steam, Some("1145350"), true),
+            &g
+        ));
+        g.platform_id = None;
+        assert!(!shortcut_matches(
+            &cand("Other", Platform::Steam, Some("1245620"), true),
+            &g
+        ));
     }
 
     #[test]
