@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { homeBoardId, setHomeBoard } from "$lib/home";
   import { api } from "$lib/api";
   import { app, type Source } from "$lib/state.svelte";
   import Icon from "./Icon.svelte";
@@ -77,11 +78,20 @@
     }
   }
 
+  let home = $state(homeBoardId());
+
+  function toggleHome(id: number, name: string) {
+    home = home === id ? null : id;
+    setHomeBoard(home);
+    if (home !== null) app.toast(`„${name}“ wird beim Start angezeigt`);
+  }
+
   async function deleteBoard(id: number, name: string) {
     if (!confirm(`Board „${name}“ löschen? Die Spiele bleiben in der Bibliothek.`)) return;
     try {
       await api.deleteBoard(id);
       app.boards = app.boards.filter((b) => b.id !== id);
+      if (home === id) toggleHome(id, name);
       if (app.screen.kind === "board" && app.screen.id === id) app.selectSource({ kind: "all" });
     } catch (e) {
       app.error(e);
@@ -156,8 +166,14 @@
       <div class="row">
         <button class="item" class:active={app.screen.kind === "board" && app.screen.id === b.id} onclick={() => (app.screen = { kind: "board", id: b.id })}>
           <Icon name="board" size={16} /><span class="name">{b.name}</span>
+          {#if home === b.id}<span class="home" title="Startseite"><Icon name="home" size={14} /></span>{/if}
         </button>
         <span class="tools">
+          <button
+            class:on={home === b.id}
+            onclick={() => toggleHome(b.id, b.name)}
+            aria-label={home === b.id ? `Board ${b.name} nicht mehr als Startseite` : `Board ${b.name} als Startseite`}
+            title={home === b.id ? "Nicht mehr als Startseite" : "Als Startseite festlegen"}><Icon name="home" size={14} /></button>
           <button onclick={() => (dialog = { kind: "renameBoard", id: b.id, name: b.name })} aria-label="Board {b.name} umbenennen"><Icon name="edit" size={14} /></button>
           <button onclick={() => deleteBoard(b.id, b.name)} aria-label="Board {b.name} löschen"><Icon name="trash" size={14} /></button>
         </span>
@@ -310,6 +326,17 @@
   }
   .row:hover .count {
     visibility: hidden;
+  }
+  .home {
+    display: flex;
+    margin-left: auto;
+    color: var(--accent);
+  }
+  .row:hover .home {
+    visibility: hidden;
+  }
+  .tools button.on {
+    color: var(--accent);
   }
   .tools button {
     display: flex;

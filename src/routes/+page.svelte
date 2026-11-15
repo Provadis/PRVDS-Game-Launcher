@@ -14,6 +14,7 @@
   import Toasts from "$lib/components/Toasts.svelte";
   import { checkOnStart } from "$lib/updates";
   import { syncOnStart } from "$lib/launchers";
+  import { openHome } from "$lib/home";
 
   onMount(() => {
     try {
@@ -22,7 +23,10 @@
     } catch {
       // Storage unavailable: keep defaults.
     }
-    app.load().then(syncOnStart).catch((e) => app.error(e));
+    app.load().then(() => {
+      openHome();
+      return syncOnStart();
+    }).catch((e) => app.error(e));
     setTimeout(checkOnStart, 3000);
     const unlisten = [
       listen<Game>("game-updated", (e) => app.upsert(e.payload)),
