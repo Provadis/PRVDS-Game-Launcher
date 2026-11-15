@@ -88,8 +88,8 @@
   async function undo() {
     menuOpen = false;
     if (!game) return;
-    if (!game.journalId) {
-      if (!confirm(`„${game.name}“ aus der Bibliothek entfernen? Das Spiel bleibt installiert, Spielzeit und Tags gehen verloren.`)) return;
+    if (game.source === "connector" || !game.journalId) {
+      if (!confirm(`„${game.name}“ aus der Bibliothek entfernen? Das Spiel bleibt installiert, Spielzeit und Tags gehen verloren.${game.journalId ? " Die Desktop-Verknüpfung kommt zurück." : ""}`)) return;
       try {
         await api.removeGame(game.id);
         app.remove(game.id);
@@ -179,7 +179,7 @@
                   <Icon name={game.hidden ? "eye" : "eyeOff"} />{game.hidden ? "Wieder anzeigen" : "Verstecken"}
                 </button>
                 <button role="menuitem" class="danger" onclick={undo}>
-                  <Icon name={game.journalId ? "undo" : "trash"} />{game.journalId ? "Zurück auf den Desktop" : "Aus Bibliothek entfernen"}
+                  <Icon name={game.source === "desktop" && game.journalId ? "undo" : "trash"} />{game.source === "desktop" && game.journalId ? "Zurück auf den Desktop" : "Aus Bibliothek entfernen"}
                 </button>
               </div>
             {/if}

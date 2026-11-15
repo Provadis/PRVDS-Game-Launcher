@@ -37,6 +37,10 @@ async fn blocking<T: Send + 'static>(
 
 #[tauri::command]
 pub fn scan_desktop(state: State<AppState>) -> Vec<Candidate> {
+    desktop_candidates(&state)
+}
+
+fn desktop_candidates(state: &AppState) -> Vec<Candidate> {
     // Shortcuts we could only copy (public desktop) are still there: hide them.
     let kept: Vec<String> = state
         .importer
@@ -154,6 +158,60 @@ fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdRe
 }
 
 // ---- launchers (connectors) ---------------------------------------------------
+
+/// Moves desktop shortcuts of launcher games off the desktop, the same safe
+/// way as a desktop import (journal, icon position), so "back to desktop"
+/// can restore them. Returns the games that got a shortcut tidied away.
+#[tauri::command]
+pub async fn tidy_desktop(app: AppHandle) -> CmdResult<Vec<Game>> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let games: Vec<Game> = state
+            .lib
+            .lock()
+            .unwrap()
+            .games()
+            .map_err(err)?
+            .into_iter()
+            .filter(|g| g.source == GameSource::Connector && g.journal_id.is_none())
+            .collect();
+        if games.is_empty() {
+            return Ok(Vec::new());
+        }
+        let positions = desktop_icons::read_positions();
+        let mut done = Vec::new();
+        let mut used = std::collections::HashSet::new();
+        for c in desktop_candidates(&state) {
+            let Some(game) = games
+                .iter()
+                .find(|g| !used.contains(&g.id) && connectors::shortcut_matches(&c, g))
+            else {
+                continue;
+            };
+            let path = Path::new(&c.path);
+            let Ok(entry) = state
+                .importer
+                .move_in_at(path, desktop_position(&positions, path))
+            else {
+                continue;
+            };
+            let lib = state.lib.lock().unwrap();
+            if lib
+                .set_desktop_shortcut(game.id, Some(&entry.id), Some(&entry.original_path))
+                .is_err()
+            {
+                let _ = state.importer.restore(&entry.id);
+                continue;
+            }
+            used.insert(game.id);
+            if let Ok(g) = lib.game(game.id) {
+                done.push(g);
+            }
+        }
+        Ok(done)
+    })
+    .await
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -493,18 +551,23 @@ pub fn undo_import(state: State<AppState>, id: i64) -> CmdResult<String> {
 /// history goes with it; the game itself stays installed.
 #[tauri::command]
 pub fn remove_game(state: State<AppState>, id: i64) -> CmdResult<()> {
-    let lib = state.lib.lock().unwrap();
-    let game = lib.game(id).map_err(err)?;
-    if game.journal_id.is_some() {
+    let game = state.lib.lock().unwrap().game(id).map_err(err)?;
+    if game.source == GameSource::Desktop && game.journal_id.is_some() {
         return Err("Dieses Spiel kommt vom Desktop. Leg es zurück auf den Desktop.".into());
     }
+    // A launcher game whose shortcut we tidied away: put the shortcut back first.
+    if game.journal_id.is_some() {
+        let (_, pos) = restore_game(&state, id)?;
+        place_icons(pos.into_iter().collect());
+    }
+    let lib = state.lib.lock().unwrap();
     lib.delete_game(id).map_err(err)?;
     remove_art_file(&state, game.cover_path.as_deref());
     remove_art_file(&state, game.hero_path.as_deref());
     Ok(())
 }
 
-/// Puts a game's shortcut back and removes the game. Returns the restored
+/// Puts a game's shortcut back and removes the game (launcher games stay). Returns the restored
 /// path and, if known, the icon's old desktop position for that file.
 fn restore_game(state: &AppState, id: i64) -> CmdResult<(PathBuf, Option<(String, IconPosition)>)> {
     let lib = state.lib.lock().unwrap();
@@ -519,9 +582,14 @@ fn restore_game(state: &AppState, id: i64) -> CmdResult<(PathBuf, Option<(String
         .ok()
         .and_then(|e| e.desktop_position);
     let restored = state.importer.restore(&journal_id).map_err(err)?;
-    lib.delete_game(id).map_err(err)?;
-    remove_art_file(state, game.cover_path.as_deref());
-    remove_art_file(state, game.hero_path.as_deref());
+    if game.source == GameSource::Connector {
+        // The game comes from a launcher and stays; only its shortcut goes back.
+        lib.set_desktop_shortcut(id, None, None).map_err(err)?;
+    } else {
+        lib.delete_game(id).map_err(err)?;
+        remove_art_file(state, game.cover_path.as_deref());
+        remove_art_file(state, game.hero_path.as_deref());
+    }
     let placement = position.zip(
         restored
             .file_name()

@@ -4,6 +4,7 @@
   import { app } from "$lib/state.svelte";
   import { placeholderColors } from "$lib/format";
   import { CONNECTOR_PLATFORMS, platformLabel, type LauncherCandidate, type Platform } from "$lib/types";
+  import { tidyDesktop, tidyDesktopShortcuts } from "$lib/launchers";
   import Icon from "./Icon.svelte";
   import ImportTabs from "./ImportTabs.svelte";
   import "./wizard.css";
@@ -49,6 +50,7 @@
       const added = await api.importLauncherGames(games);
       for (const g of added) app.upsert(g);
       app.toast(`${added.length} Spiele übernommen. Cover werden geladen …`);
+      if (tidyDesktopShortcuts()) await tidyDesktop();
       app.selectSource({ kind: "all" });
     } catch (e) {
       app.error(e);
@@ -107,7 +109,7 @@
   <footer>
     <div class="summary">
       <strong>{count} von {candidates.length} ausgewählt</strong>
-      <span class="muted">Gestartet wird über den jeweiligen Launcher. Dein Desktop bleibt unverändert.</span>
+      <span class="muted">Gestartet wird über den jeweiligen Launcher.{tidyDesktopShortcuts() ? " Passende Desktop-Verknüpfungen werden weggeräumt." : " Dein Desktop bleibt unverändert."}</span>
     </div>
     <span class="spacer"></span>
     <button class="btn big" onclick={() => (app.screen = { kind: "library" })}>Abbrechen</button>

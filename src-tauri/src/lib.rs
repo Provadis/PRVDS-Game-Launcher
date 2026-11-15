@@ -32,6 +32,7 @@ pub fn run() {
             commands::sessions,
             commands::undo_import,
             commands::remove_game,
+            commands::tidy_desktop,
             commands::restore_all,
             commands::list_tags,
             commands::add_tag,

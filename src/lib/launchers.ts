@@ -22,8 +22,41 @@ export function setSyncLaunchersOnStart(on: boolean) {
   }
 }
 
+/** Whether desktop shortcuts of launcher games are tidied away (default off). */
+export function tidyDesktopShortcuts(): boolean {
+  return read("tidyDesktop") === "true";
+}
+
+export function setTidyDesktopShortcuts(on: boolean) {
+  try {
+    localStorage.setItem("tidyDesktop", String(on));
+  } catch {
+    // Storage unavailable: the choice lasts for this session only.
+  }
+}
+
+/** Moves desktop shortcuts of launcher games into the library folder (positions are kept). */
+export async function tidyDesktop(quiet = false) {
+  try {
+    const tidied = await api.tidyDesktop();
+    for (const g of tidied) app.upsert(g);
+    if (tidied.length && !quiet) {
+      app.toast(
+        tidied.length === 1
+          ? `Desktop-Verknüpfung von „${tidied[0].name}“ weggeräumt`
+          : `${tidied.length} Desktop-Verknüpfungen weggeräumt`,
+      );
+    }
+    return tidied.length;
+  } catch (e) {
+    if (!quiet) app.error(e);
+    return 0;
+  }
+}
+
 /** Start-up check: marks removed games and offers newly installed ones. */
 export async function syncOnStart() {
+  if (tidyDesktopShortcuts()) await tidyDesktop();
   if (!syncLaunchersOnStart()) return;
   try {
     const r = await api.syncLaunchers();
