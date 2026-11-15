@@ -53,6 +53,7 @@ pub fn run() {
             commands::set_art_from_url,
             commands::set_art_from_file,
             commands::set_art_from_bytes,
+            commands::reload_art,
             commands::refresh_metadata,
             commands::get_settings,
             commands::save_keys,
