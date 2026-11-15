@@ -741,12 +741,85 @@ pub fn create_board(state: State<AppState>, name: String) -> CmdResult<Board> {
 
 #[tauri::command]
 pub fn save_board(state: State<AppState>, board: Board) -> CmdResult<Board> {
-    state.lib.lock().unwrap().save_board(&board).map_err(err)
+    let saved = state.lib.lock().unwrap().save_board(&board).map_err(err)?;
+    prune_backgrounds(&state);
+    Ok(saved)
 }
 
 #[tauri::command]
 pub fn delete_board(state: State<AppState>, id: i64) -> CmdResult<()> {
-    state.lib.lock().unwrap().delete_board(id).map_err(err)
+    state.lib.lock().unwrap().delete_board(id).map_err(err)?;
+    prune_backgrounds(&state);
+    Ok(())
+}
+
+/// Copies a picture or video into the app's backgrounds folder (so the
+/// board keeps it even if the original moves) and returns the copy's path.
+/// It is only kept once a board using it is saved.
+#[tauri::command]
+pub async fn import_background(app: AppHandle, path: String) -> CmdResult<String> {
+    use launcher_core::boards::BACKGROUND_EXTENSIONS;
+    const MAX_BYTES: u64 = 500 * 1024 * 1024;
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let src = Path::new(&path);
+        let ext = src
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if !BACKGROUND_EXTENSIONS.contains(&ext.as_str()) {
+            return Err(
+                "Bitte ein Bild (JPG, PNG, WEBP, GIF) oder Video (MP4, WEBM) wählen".into(),
+            );
+        }
+        let size = std::fs::metadata(src).map_err(err)?.len();
+        if size > MAX_BYTES {
+            return Err("Die Datei ist größer als 500 MB".into());
+        }
+        let dir = state.backgrounds_dir();
+        std::fs::create_dir_all(&dir).map_err(err)?;
+        let dest = dir.join(format!("{}.{ext}", now_millis()));
+        std::fs::copy(src, &dest).map_err(err)?;
+        Ok(dest.to_string_lossy().into_owned())
+    })
+    .await
+}
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default()
+}
+
+/// Deletes background files no board uses any more. Files copied in the
+/// last hour are kept: they may belong to a board still being edited.
+fn prune_backgrounds(state: &AppState) {
+    let Ok(boards) = state.lib.lock().unwrap().boards() else {
+        return;
+    };
+    let used: std::collections::HashSet<PathBuf> = boards
+        .iter()
+        .filter_map(|b| b.background.as_ref())
+        .filter(|bg| bg.kind != "preset")
+        .map(|bg| PathBuf::from(&bg.value))
+        .collect();
+    let Ok(entries) = std::fs::read_dir(state.backgrounds_dir()) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let path = e.path();
+        let recent = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age.as_secs() < 3600);
+        if !recent && !used.contains(&path) {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
 }
 
 // ---- artwork & metadata -----------------------------------------------------

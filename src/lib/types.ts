@@ -255,6 +255,18 @@ export interface Board {
   id: number;
   name: string;
   fields: BoardField[];
+  background?: BoardBackground | null;
+}
+
+export type BackgroundPreset = "aurora" | "nebula" | "sunset" | "drift" | "synthwave" | "peaks" | "ocean";
+
+export interface BoardBackground {
+  /** "preset": value is a preset name; "image"/"video": value is a file path. */
+  kind: "preset" | "image" | "video";
+  value: string;
+  align: "left" | "center" | "right";
+  /** Darkening in percent (0–85). */
+  dim: number;
 }
 
 export const MAX_FIELD_COLS = 60;

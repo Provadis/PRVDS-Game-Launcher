@@ -56,6 +56,7 @@ export const api = {
   createBoard: (name: string) => invoke<Board>("create_board", { name }),
   saveBoard: (board: Board) => invoke<Board>("save_board", { board }),
   deleteBoard: (id: number) => invoke<void>("delete_board", { id }),
+  importBackground: (path: string) => invoke<string>("import_background", { path }),
   artOptions: (id: number, kind: ArtKind) => invoke<ArtOption[]>("art_options", { id, kind }),
   setArtFromUrl: (id: number, kind: ArtKind, url: string) => invoke<Game>("set_art_from_url", { id, kind, url }),
   setArtFromFile: (id: number, kind: ArtKind, path: string) => invoke<Game>("set_art_from_file", { id, kind, path }),

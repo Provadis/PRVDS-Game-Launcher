@@ -45,4 +45,8 @@ impl AppState {
     pub fn covers_dir(&self) -> PathBuf {
         self.data_dir.join("covers")
     }
+
+    pub fn backgrounds_dir(&self) -> PathBuf {
+        self.data_dir.join("backgrounds")
+    }
 }

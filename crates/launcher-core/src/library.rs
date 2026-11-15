@@ -5,7 +5,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
-use crate::boards::{Board, BoardField, BoardLayout, normalize_fields};
+use crate::boards::{Board, BoardField, BoardLayout, normalize_background, normalize_fields};
 use crate::error::{Error, Result};
 use crate::model::{Collection, Game, GamePatch, GameSource, NewGame, Platform, Session};
 use crate::query::{SavedView, ViewDefinition};
@@ -619,6 +619,7 @@ impl Library {
                     id,
                     name,
                     fields: normalize_fields(layout.fields, |g| ids.contains(&g)),
+                    background: normalize_background(layout.background),
                 })
             })
             .collect()
@@ -643,6 +644,7 @@ impl Library {
                 title: "Neues Feld".into(),
                 ..Default::default()
             }],
+            background: None,
         };
         self.conn.execute(
             "INSERT INTO boards (name, layout, position) VALUES (?1, ?2, (SELECT COALESCE(MAX(position), 0) + 1 FROM boards))",
@@ -661,6 +663,7 @@ impl Library {
         let ids = self.game_ids()?;
         let layout = BoardLayout {
             fields: normalize_fields(board.fields.clone(), |g| ids.contains(&g)),
+            background: normalize_background(board.background.clone()),
         };
         let changed = self.conn.execute(
             "UPDATE boards SET name = ?1, layout = ?2 WHERE id = ?3",
