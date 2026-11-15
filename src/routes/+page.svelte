@@ -14,6 +14,7 @@
   import BoardView from "$lib/components/BoardView.svelte";
   import Settings from "$lib/components/Settings.svelte";
   import Toasts from "$lib/components/Toasts.svelte";
+  import QuickLaunch from "$lib/components/QuickLaunch.svelte";
   import { checkOnStart } from "$lib/updates";
   import { syncOnStart } from "$lib/launchers";
   import { openHome } from "$lib/home";
@@ -76,6 +77,13 @@
 <!-- Files dropped into the window must not open as a page. Only a game's
      detail page takes them (as cover); everywhere else the drop is refused. -->
 <svelte:window
+  onkeydown={(e) => {
+    // Ctrl+K (or Cmd+K) opens the quick launch search from anywhere.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      app.quickOpen = !app.quickOpen;
+    }
+  }}
   ondragover={(e) => {
     if (!e.dataTransfer?.types.includes("Files")) return;
     e.preventDefault();
@@ -109,6 +117,7 @@
   {/if}
 </div>
 <Toasts />
+{#if app.quickOpen}<QuickLaunch />{/if}
 
 <style>
   .app {

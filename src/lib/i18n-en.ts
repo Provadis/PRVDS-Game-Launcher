@@ -354,4 +354,14 @@ export const en: Record<string, string> = {
   "{name}: Spielzeit konnte nicht gemessen werden. Trag in den Spieldetails die Exe ein.":
     "{name}: playtime could not be measured. Enter the exe in the game details.",
   "Öffnen": "Open",
+
+  // Quick launch
+  "Schnellstart": "Quick launch",
+  "Schnellstart (Strg+K)": "Quick launch (Ctrl+K)",
+  "Strg": "Ctrl",
+  "Spiel suchen": "Search game",
+  "Spiel suchen und starten …": "Search and launch a game …",
+  "Details zu {name}": "Details for {name}",
+  "Kein Spiel gefunden.": "No game found.",
+  "Auswählen": "Select",
 };
