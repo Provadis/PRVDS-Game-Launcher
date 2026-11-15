@@ -24,7 +24,7 @@
         e.dataTransfer?.setData("application/x-game-id", String(g.id));
         e.dataTransfer?.setData("text/plain", g.name);
       }}>
-      <button class="cover-btn" onclick={() => (app.screen = { kind: "detail", id: g.id })} aria-label="{g.name} öffnen">
+      <button class="cover-btn" onclick={() => (app.openGame(g.id))} aria-label="{g.name} öffnen">
         <Cover game={g} />
       </button>
       <button class="play" onclick={() => app.launch(g.id)} aria-label="{g.name} spielen" title="Spielen">

@@ -5,6 +5,7 @@
   import type { Settings, UpdateChannel, UpdateCheck } from "$lib/types";
   import { autoCheckUpdates, setAutoCheckUpdates, setUpdateChannel, updateChannel } from "$lib/updates";
   import { setSyncLaunchersOnStart, setTidyDesktopShortcuts, syncLaunchersOnStart, tidyDesktop, tidyDesktopShortcuts } from "$lib/launchers";
+  import { boardAuraOn, setBoardAura } from "$lib/aura";
   import Icon from "./Icon.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -206,6 +207,14 @@
     {:else if check?.update?.notes}
       <p class="notes">{check.update.notes}</p>
     {/if}
+  </section>
+
+  <section class="panel">
+    <h2>Boards</h2>
+    <label class="check">
+      <input type="checkbox" checked={boardAuraOn()} onchange={(e) => setBoardAura(e.currentTarget.checked)} />
+      <span>Felder in den Farben ihrer Cover einfärben</span>
+    </label>
   </section>
 
   <section class="panel">

@@ -13,6 +13,7 @@ pub fn run() {
         .manage(updates::PendingUpdate::default())
         .setup(|app| {
             let state = state::AppState::init()?;
+            shrink_stored_art(state.covers_dir());
             app.manage(state);
             tracker::spawn(app.handle().clone());
             Ok(())
@@ -63,4 +64,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Scales down covers and heroes saved before downloads were downscaled.
+/// Runs once in the background; files that are small enough are only
+/// looked at, not rewritten.
+fn shrink_stored_art(dir: std::path::PathBuf) {
+    use launcher_core::artwork::{ArtKind, shrink_file};
+    std::thread::spawn(move || {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            return;
+        };
+        for e in entries.flatten() {
+            let path = e.path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let kind = if name.contains("-hero-") {
+                ArtKind::Hero
+            } else {
+                ArtKind::Cover
+            };
+            shrink_file(&path, kind);
+        }
+    });
 }

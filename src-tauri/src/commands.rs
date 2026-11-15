@@ -406,7 +406,7 @@ fn ext_of(s: &str) -> &str {
 
 fn download_art(state: &AppState, game: &Game, kind: ArtKind, url: &str) -> CmdResult<String> {
     let dest = art_file(state, game, kind, ext_of(url));
-    state.art.download(url, &dest).map_err(err)?;
+    state.art.download(url, &dest, kind).map_err(err)?;
     Ok(dest.to_string_lossy().into_owned())
 }
 
@@ -847,6 +847,7 @@ pub fn set_art_from_bytes(
         return Err("Das Bild ist leer oder größer als 25 MB".into());
     }
     let dest = art_file(&state, &game, kind, &ext);
+    let bytes = launcher_core::artwork::fit_image(&bytes, &dest, kind).unwrap_or(bytes);
     std::fs::write(&dest, &bytes).map_err(err)?;
     let updated = apply_art(&state, id, kind, dest.to_string_lossy().into_owned())?;
     let _ = app.emit("game-updated", updated.clone());
