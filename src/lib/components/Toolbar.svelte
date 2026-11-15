@@ -87,6 +87,16 @@
         <Icon name="list" />
       </button>
     </div>
+  </div>
+
+  <div class="row chips">
+    {#if usedPlatforms.length > 1}
+      <button class="chip" class:active={app.query.platforms.length === 0} onclick={() => (app.query.platforms = [])}>Alle</button>
+      {#each usedPlatforms as p (p.id)}
+        <button class="chip" class:active={app.query.platforms.includes(p.id)} onclick={() => togglePlatform(p.id)}>{p.label}</button>
+      {/each}
+    {/if}
+    <span class="spacer"></span>
     {#if app.layout.mode === "grid"}
       <label class="size" title="Covergröße">
         <span class="sr-only">Covergröße</span>
@@ -98,15 +108,6 @@
       <button class="btn" onclick={onSaveView}><Icon name="layers" size={16} />Ansicht speichern</button>
     {/if}
   </div>
-
-  {#if usedPlatforms.length > 1}
-    <div class="row chips">
-      <button class="chip" class:active={app.query.platforms.length === 0} onclick={() => (app.query.platforms = [])}>Alle</button>
-      {#each usedPlatforms as p (p.id)}
-        <button class="chip" class:active={app.query.platforms.includes(p.id)} onclick={() => togglePlatform(p.id)}>{p.label}</button>
-      {/each}
-    </div>
-  {/if}
 
   {#if filtersOpen}
     <div class="filters">
@@ -200,7 +201,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    width: 320px;
+    width: 280px;
     max-width: 100%;
     padding: 10px 14px;
     border-radius: 12px;

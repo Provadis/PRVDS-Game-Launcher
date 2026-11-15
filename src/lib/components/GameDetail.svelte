@@ -7,6 +7,7 @@
   import { formatPlaytime, placeholderColors, relativeDay } from "$lib/format";
   import { platformLabel, type ArtKind, type GamePatch } from "$lib/types";
   import ArtPicker from "./ArtPicker.svelte";
+  import CollectionsPanel from "./CollectionsPanel.svelte";
   import Cover from "./Cover.svelte";
   import Icon from "./Icon.svelte";
   import PlaytimePanel from "./PlaytimePanel.svelte";
@@ -187,10 +188,16 @@
         <p class="summary">{game.summary}</p>
       </section>
     {/if}
-    <section class="panel">
-      <h2>Tags</h2>
-      <TagEditor {game} />
-    </section>
+    <div class="cols">
+      <section class="panel">
+        <h2>Sammlungen</h2>
+        <CollectionsPanel {game} />
+      </section>
+      <section class="panel">
+        <h2>Tags</h2>
+        <TagEditor {game} />
+      </section>
+    </div>
   </div>
   {#if picker}
     <ArtPicker {game} kind={picker} onclose={() => (picker = null)} />

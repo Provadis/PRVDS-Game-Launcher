@@ -103,8 +103,9 @@ class AppState {
     if (source.kind === "view") {
       const v = this.views.find((x) => x.id === source.id);
       if (v) {
-        this.query = structuredClone(v.definition.query);
-        this.layout = structuredClone(v.definition.layout);
+        const def = $state.snapshot(v.definition);
+        this.query = { ...emptyQuery(), ...def.query, collection: def.query.collection ?? null };
+        this.layout = def.layout;
       }
       return;
     }
