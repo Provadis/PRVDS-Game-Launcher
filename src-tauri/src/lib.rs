@@ -1,6 +1,7 @@
 mod commands;
 mod state;
 mod tracker;
+mod updates;
 
 use tauri::Manager;
 
@@ -8,6 +9,8 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(updates::plugin())
+        .manage(updates::PendingUpdate::default())
         .setup(|app| {
             let state = state::AppState::init()?;
             app.manage(state);
@@ -44,6 +47,8 @@ pub fn run() {
             commands::get_settings,
             commands::save_keys,
             commands::open_data_folder,
+            updates::check_update,
+            updates::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

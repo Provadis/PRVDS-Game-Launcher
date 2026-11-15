@@ -10,6 +10,7 @@
   import ImportWizard from "$lib/components/ImportWizard.svelte";
   import Settings from "$lib/components/Settings.svelte";
   import Toasts from "$lib/components/Toasts.svelte";
+  import { checkOnStart } from "$lib/updates";
 
   onMount(() => {
     try {
@@ -19,6 +20,7 @@
       // Storage unavailable: keep defaults.
     }
     app.load().catch((e) => app.error(e));
+    setTimeout(checkOnStart, 3000);
     const unlisten = [
       listen<Game>("game-updated", (e) => app.upsert(e.payload)),
       listen<TrackerEvent>("tracker", (e) => {

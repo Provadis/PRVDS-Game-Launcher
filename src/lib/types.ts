@@ -182,3 +182,18 @@ export type TrackerEvent =
   | { type: "started"; gameId: number; at: number }
   | { type: "ended"; gameId: number; startedAt: number; endedAt: number }
   | { type: "notDetected"; gameId: number };
+
+export type UpdateChannel = "stable" | "dev";
+
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+  date: string | null;
+}
+
+export interface UpdateCheck {
+  /** False for builds without an update key (local builds). */
+  enabled: boolean;
+  update: UpdateInfo | null;
+}
