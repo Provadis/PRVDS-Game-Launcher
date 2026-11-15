@@ -3,6 +3,7 @@ import type {
   ArtKind,
   ArtOption,
   ArtworkKeys,
+  Board,
   Candidate,
   Collection,
   Game,
@@ -51,6 +52,10 @@ export const api = {
   saveView: (id: number | null, name: string, definition: ViewDefinition) =>
     invoke<SavedView>("save_view", { id, name, definition }),
   deleteView: (id: number) => invoke<void>("delete_view", { id }),
+  listBoards: () => invoke<Board[]>("list_boards"),
+  createBoard: (name: string) => invoke<Board>("create_board", { name }),
+  saveBoard: (board: Board) => invoke<Board>("save_board", { board }),
+  deleteBoard: (id: number) => invoke<void>("delete_board", { id }),
   artOptions: (id: number, kind: ArtKind) => invoke<ArtOption[]>("art_options", { id, kind }),
   setArtFromUrl: (id: number, kind: ArtKind, url: string) => invoke<Game>("set_art_from_url", { id, kind, url }),
   setArtFromFile: (id: number, kind: ArtKind, path: string) => invoke<Game>("set_art_from_file", { id, kind, path }),

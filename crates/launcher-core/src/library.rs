@@ -1,9 +1,11 @@
 //! SQLite backed game library.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
+use crate::boards::{Board, BoardField, BoardLayout, normalize_fields};
 use crate::error::{Error, Result};
 use crate::model::{Collection, Game, GamePatch, GameSource, NewGame, Platform, Session};
 use crate::query::{SavedView, ViewDefinition};
@@ -74,6 +76,15 @@ CREATE INDEX sessions_game ON sessions(game_id, started_at);
 ALTER TABLE games ADD COLUMN launch_args TEXT;
 ALTER TABLE games ADD COLUMN source TEXT NOT NULL DEFAULT 'desktop';
 ALTER TABLE games ADD COLUMN installed INTEGER NOT NULL DEFAULT 1;
+"#,
+    // 0.5: boards (hand-arranged views), stored as one JSON layout each.
+    r#"
+CREATE TABLE boards (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    layout TEXT NOT NULL DEFAULT '{}',
+    position INTEGER NOT NULL DEFAULT 0
+);
 "#,
 ];
 
@@ -555,6 +566,92 @@ impl Library {
         self.conn.execute("DELETE FROM views WHERE id = ?1", [id])?;
         Ok(())
     }
+
+    // ---- boards --------------------------------------------------------------
+
+    fn game_ids(&self) -> Result<HashSet<i64>> {
+        let mut stmt = self.conn.prepare("SELECT id FROM games")?;
+        let ids = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(ids)
+    }
+
+    /// All boards. Games deleted since a board was saved are left out.
+    pub fn boards(&self) -> Result<Vec<Board>> {
+        let ids = self.game_ids()?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, layout FROM boards ORDER BY position, id")?;
+        let rows: Vec<(i64, String, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        rows.into_iter()
+            .map(|(id, name, layout)| {
+                // A broken layout must not hide the board: show it empty.
+                let layout: BoardLayout = serde_json::from_str(&layout).unwrap_or_default();
+                Ok(Board {
+                    id,
+                    name,
+                    fields: normalize_fields(layout.fields, |g| ids.contains(&g)),
+                })
+            })
+            .collect()
+    }
+
+    pub fn board(&self, id: i64) -> Result<Board> {
+        self.boards()?
+            .into_iter()
+            .find(|b| b.id == id)
+            .ok_or_else(|| Error::Other("Board nicht gefunden".into()))
+    }
+
+    /// A new board with one empty field, so there is something to fill.
+    pub fn create_board(&self, name: &str) -> Result<Board> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Other("Der Name darf nicht leer sein".into()));
+        }
+        let layout = BoardLayout {
+            fields: vec![BoardField {
+                id: "f0".into(),
+                title: "Neues Feld".into(),
+                ..Default::default()
+            }],
+        };
+        self.conn.execute(
+            "INSERT INTO boards (name, layout, position) VALUES (?1, ?2, (SELECT COALESCE(MAX(position), 0) + 1 FROM boards))",
+            params![name, serde_json::to_string(&layout)?],
+        )?;
+        self.board(self.conn.last_insert_rowid())
+    }
+
+    /// Saves name and fields of an existing board (as cleaned up by
+    /// [`normalize_fields`]) and returns what was stored.
+    pub fn save_board(&self, board: &Board) -> Result<Board> {
+        let name = board.name.trim();
+        if name.is_empty() {
+            return Err(Error::Other("Der Name darf nicht leer sein".into()));
+        }
+        let ids = self.game_ids()?;
+        let layout = BoardLayout {
+            fields: normalize_fields(board.fields.clone(), |g| ids.contains(&g)),
+        };
+        let changed = self.conn.execute(
+            "UPDATE boards SET name = ?1, layout = ?2 WHERE id = ?3",
+            params![name, serde_json::to_string(&layout)?, board.id],
+        )?;
+        if changed == 0 {
+            return Err(Error::Other("Board nicht gefunden".into()));
+        }
+        self.board(board.id)
+    }
+
+    pub fn delete_board(&self, id: i64) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM boards WHERE id = ?1", [id])?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -734,5 +831,60 @@ mod tests {
         }
         let lib = Library::open(&path).unwrap();
         assert_eq!(lib.games().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn boards_round_trip() {
+        use crate::boards::BoardSlot;
+        let lib = Library::open_in_memory().unwrap();
+        let a = lib.add_game(&new_game("Elden Ring")).unwrap();
+        let b = lib.add_game(&new_game("Hades II")).unwrap();
+        let mut board = lib.create_board(" Mein Game Space ").unwrap();
+        assert_eq!(board.name, "Mein Game Space");
+        assert_eq!(board.fields.len(), 1);
+        board.fields[0].title = "Gerade dran".into();
+        board.fields[0].slots = vec![
+            BoardSlot {
+                col: 0,
+                row: 0,
+                game_id: a.id,
+            },
+            BoardSlot {
+                col: 2,
+                row: 0,
+                game_id: b.id,
+            },
+        ];
+        board.fields.push(BoardField {
+            id: "f1".into(),
+            title: "Story".into(),
+            y: 2,
+            slots: vec![BoardSlot {
+                col: 1,
+                row: 0,
+                game_id: a.id,
+            }],
+            ..Default::default()
+        });
+        let saved = lib.save_board(&board).unwrap();
+        assert_eq!(saved, board);
+        assert_eq!(lib.boards().unwrap(), vec![board.clone()]);
+
+        // Deleting a game leaves a gap, nothing else moves.
+        lib.delete_game(a.id).unwrap();
+        let after = lib.board(board.id).unwrap();
+        assert_eq!(
+            after.fields[0].slots,
+            vec![BoardSlot {
+                col: 2,
+                row: 0,
+                game_id: b.id
+            }]
+        );
+        assert!(after.fields[1].slots.is_empty());
+
+        lib.delete_board(board.id).unwrap();
+        assert!(lib.boards().unwrap().is_empty());
+        assert!(lib.save_board(&board).is_err());
     }
 }

@@ -9,6 +9,7 @@
   import GameDetail from "$lib/components/GameDetail.svelte";
   import ImportWizard from "$lib/components/ImportWizard.svelte";
   import LauncherImport from "$lib/components/LauncherImport.svelte";
+  import BoardView from "$lib/components/BoardView.svelte";
   import Settings from "$lib/components/Settings.svelte";
   import Toasts from "$lib/components/Toasts.svelte";
   import { checkOnStart } from "$lib/updates";
@@ -79,6 +80,8 @@
       {#key app.screen.id}
         <GameDetail id={app.screen.id} />
       {/key}
+    {:else if app.screen.kind === "board"}
+      <BoardView id={app.screen.id} />
     {:else if app.screen.kind === "settings"}
       <Settings />
     {:else}

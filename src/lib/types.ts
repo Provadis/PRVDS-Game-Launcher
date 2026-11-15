@@ -230,3 +230,30 @@ export interface SyncReport {
   uninstalled: Game[];
   reinstalled: Game[];
 }
+
+export interface BoardSlot {
+  col: number;
+  row: number;
+  gameId: number;
+}
+
+export interface BoardField {
+  id: string;
+  title: string;
+  /** Position in grid steps. */
+  x: number;
+  y: number;
+  /** Size in cover slots. */
+  cols: number;
+  rows: number;
+  slots: BoardSlot[];
+}
+
+export interface Board {
+  id: number;
+  name: string;
+  fields: BoardField[];
+}
+
+export const MAX_FIELD_COLS = 12;
+export const MAX_FIELD_ROWS = 8;
