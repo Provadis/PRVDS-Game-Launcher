@@ -168,6 +168,7 @@ export interface ArtworkKeys {
 }
 
 export interface Settings {
+  version: string;
   keys: ArtworkKeys;
   dataDir: string;
   shortcutsDir: string;

@@ -527,6 +527,8 @@ pub async fn refresh_metadata(app: AppHandle, id: i64) -> CmdResult<Game> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    /// App version, e.g. `0.2.0` or `0.2.0-dev.42` for dev builds.
+    version: String,
     keys: ArtworkKeys,
     data_dir: String,
     shortcuts_dir: String,
@@ -534,8 +536,9 @@ pub struct Settings {
 }
 
 #[tauri::command]
-pub fn get_settings(state: State<AppState>) -> Settings {
+pub fn get_settings(app: AppHandle, state: State<AppState>) -> Settings {
     Settings {
+        version: app.package_info().version.to_string(),
         keys: state.secrets.load(),
         data_dir: state.data_dir.to_string_lossy().into_owned(),
         shortcuts_dir: state

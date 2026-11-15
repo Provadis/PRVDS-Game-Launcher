@@ -36,3 +36,16 @@ npm run tauri build    # Installer (NSIS/MSI) unter target/release/bundle
 ## Branches
 
 Git Flow: Entwicklung auf `dev`, Releases über `release/*` nach `main`.
+
+## Versionen und Builds
+
+Die Version steht nur in `package.json`; `node scripts/version.mjs set 0.3.0` überträgt sie in `Cargo.toml`,
+die CI prüft, dass beide übereinstimmen. Bis zur ersten stabilen Version zählen wir `0.x` hoch.
+
+| Build | Auslöser | Datei |
+| --- | --- | --- |
+| Dev | jeder Push auf `dev` (oder manuell) | `PRVDS-Game-Launcher_0.2.0-dev.<Build-Nr.>_x64-setup.exe` |
+| Release | Tag `v0.2.0` auf `main` | `PRVDS-Game-Launcher_0.2.0_x64-setup.exe` und `.msi` |
+
+Die Installer liegen als Artefakt am jeweiligen Lauf von „Windows installer“ unter GitHub Actions.
+Die installierte Version steht in der App unten in den Einstellungen.
