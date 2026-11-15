@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { convertFileSrc } from "@tauri-apps/api/core";
-  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
   import { formatPlaytime, placeholderColors, relativeDay } from "$lib/format";
@@ -26,28 +24,33 @@
   let colors = $derived(placeholderColors(game?.name ?? ""));
 
   // Drop an image file anywhere on the page to use it as cover.
-  onMount(() => {
-    const un = getCurrentWebview().onDragDropEvent(async (ev) => {
-      const t = ev.payload.type;
-      if (t === "enter" || t === "over") dropping = true;
-      else if (t === "leave") dropping = false;
-      else if (t === "drop") {
-        dropping = false;
-        const file = ev.payload.paths.find((p) => /\.(png|jpe?g|webp)$/i.test(p));
-        if (file && game) {
-          try {
-            app.upsert(await api.setArtFromFile(game.id, "cover", file));
-            app.toast("Cover übernommen");
-          } catch (e) {
-            app.error(e);
-          }
-        }
-      }
-    });
-    return () => {
-      un.then((f) => f()).catch(() => {});
-    };
-  });
+  const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+
+  function onDragOver(e: DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dropping = true;
+  }
+
+  function onDragLeave(e: DragEvent) {
+    // Only when the pointer leaves the window, not between child elements.
+    if (!e.relatedTarget) dropping = false;
+  }
+
+  async function onDrop(e: DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dropping = false;
+    const file = Array.from(e.dataTransfer?.files ?? []).find((f) => /\.(png|jpe?g|webp|gif)$/i.test(f.name));
+    if (!file || !game) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      app.upsert(await api.setArtFromBytes(game.id, "cover", file.name, bytes));
+      app.toast("Cover übernommen");
+    } catch (err) {
+      app.error(err);
+    }
+  }
 
   async function refresh() {
     if (!game) return;
@@ -112,7 +115,7 @@
   }
 </script>
 
-<svelte:window onclick={() => (menuOpen = false)} />
+<svelte:window onclick={() => (menuOpen = false)} ondragover={onDragOver} ondragleave={onDragLeave} ondrop={onDrop} />
 
 {#if game}
   <div class="detail scroll" style="--a: {colors[0]}; --b: {colors[1]}">

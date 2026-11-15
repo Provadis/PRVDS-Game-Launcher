@@ -67,6 +67,19 @@
   });
 </script>
 
+<!-- Files dropped into the window must not open as a page. Only a game's
+     detail page takes them (as cover); everywhere else the drop is refused. -->
+<svelte:window
+  ondragover={(e) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = app.screen.kind === "detail" ? "copy" : "none";
+  }}
+  ondrop={(e) => {
+    if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+  }}
+/>
+
 <div class="app">
   {#if app.screen.kind === "import"}
     {#if app.screen.from === "launchers"}
