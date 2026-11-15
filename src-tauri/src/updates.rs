@@ -27,7 +27,7 @@ pub fn enabled() -> bool {
 pub fn plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R, tauri_plugin_updater::Config> {
     let builder = tauri_plugin_updater::Builder::new();
     match PUBKEY.filter(|k| !k.trim().is_empty()) {
-        Some(key) => builder.pubkey(key).build(),
+        Some(key) => builder.pubkey(key.trim()).build(),
         None => builder.build(),
     }
 }

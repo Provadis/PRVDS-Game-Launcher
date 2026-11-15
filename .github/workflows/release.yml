@@ -71,7 +71,10 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [[ -n "$TAURI_SIGNING_PRIVATE_KEY" && -n "$PRVDS_UPDATER_PUBKEY" ]]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "config={\"version\":\"$version\",\"bundle\":{\"createUpdaterArtifacts\":true}}" >> "$GITHUB_OUTPUT"
+            # The CLI checks the signature against plugins.updater.pubkey, which
+            # is empty in tauri.conf.json, so the key goes in here as well.
+            config=$(node -e 'console.log(JSON.stringify({version: process.argv[1], bundle: {createUpdaterArtifacts: true}, plugins: {updater: {pubkey: process.env.PRVDS_UPDATER_PUBKEY.trim()}}}))' "$version")
+            echo "config=$config" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::No update signing key configured: building unsigned, nothing gets published."
             echo "signed=false" >> "$GITHUB_OUTPUT"
