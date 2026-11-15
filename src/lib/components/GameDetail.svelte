@@ -1,8 +1,12 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { convertFileSrc } from "@tauri-apps/api/core";
+  import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
-  import { formatPlaytime, relativeDay } from "$lib/format";
-  import { platformLabel, type GamePatch } from "$lib/types";
+  import { formatPlaytime, placeholderColors, relativeDay } from "$lib/format";
+  import { platformLabel, type ArtKind, type GamePatch } from "$lib/types";
+  import ArtPicker from "./ArtPicker.svelte";
   import Cover from "./Cover.svelte";
   import Icon from "./Icon.svelte";
   import TagEditor from "./TagEditor.svelte";
@@ -12,6 +16,49 @@
   let menuOpen = $state(false);
   let renaming = $state(false);
   let nameDraft = $state("");
+  let picker = $state<ArtKind | null>(null);
+  let dropping = $state(false);
+  let refreshing = $state(false);
+  let hero = $derived(game?.heroPath ? convertFileSrc(game.heroPath) : null);
+  let colors = $derived(placeholderColors(game?.name ?? ""));
+
+  // Drop an image file anywhere on the page to use it as cover.
+  onMount(() => {
+    const un = getCurrentWebview().onDragDropEvent(async (ev) => {
+      const t = ev.payload.type;
+      if (t === "enter" || t === "over") dropping = true;
+      else if (t === "leave") dropping = false;
+      else if (t === "drop") {
+        dropping = false;
+        const file = ev.payload.paths.find((p) => /\.(png|jpe?g|webp)$/i.test(p));
+        if (file && game) {
+          try {
+            app.upsert(await api.setArtFromFile(game.id, "cover", file));
+            app.toast("Cover übernommen");
+          } catch (e) {
+            app.error(e);
+          }
+        }
+      }
+    });
+    return () => {
+      un.then((f) => f()).catch(() => {});
+    };
+  });
+
+  async function refresh() {
+    if (!game) return;
+    menuOpen = false;
+    refreshing = true;
+    try {
+      app.upsert(await api.refreshMetadata(game.id));
+      app.toast("Infos aktualisiert");
+    } catch (e) {
+      app.error(e);
+    } finally {
+      refreshing = false;
+    }
+  }
 
   async function patch(p: GamePatch) {
     if (!game) return;
@@ -53,12 +100,19 @@
 <svelte:window onclick={() => (menuOpen = false)} />
 
 {#if game}
-  <div class="detail scroll">
+  <div class="detail scroll" style="--a: {colors[0]}; --b: {colors[1]}">
+    <div class="hero" aria-hidden="true">
+      {#if hero}<img src={hero} alt="" />{/if}
+      <div class="fade"></div>
+    </div>
     <button class="btn back" onclick={() => (app.screen = { kind: "library" })}>
       <Icon name="chevronLeft" />Bibliothek
     </button>
     <div class="top">
-      <div class="cover"><Cover {game} radius={18} /></div>
+      <button class="cover" onclick={() => (picker = "cover")} title="Cover ändern" aria-label="Cover ändern">
+        <Cover {game} radius={18} />
+        <span class="cover-hint"><Icon name="image" size={16} />{dropping ? "Bild hier ablegen" : "Cover ändern"}</span>
+      </button>
       <div class="info">
         <div class="pills">
           <span class="pill">{platformLabel(game.platform)}</span>
@@ -103,6 +157,9 @@
             {#if menuOpen}
               <div class="menu" role="menu">
                 <button role="menuitem" onclick={startRename}><Icon name="edit" />Umbenennen</button>
+                <button role="menuitem" onclick={() => { picker = "cover"; menuOpen = false; }}><Icon name="image" />Cover ändern</button>
+                <button role="menuitem" onclick={() => { picker = "hero"; menuOpen = false; }}><Icon name="image" />Hintergrundbild ändern</button>
+                <button role="menuitem" onclick={refresh} disabled={refreshing}><Icon name="refresh" />Infos neu laden</button>
                 <button role="menuitem" onclick={() => patch({ hidden: !game.hidden })}>
                   <Icon name={game.hidden ? "eye" : "eyeOff"} />{game.hidden ? "Wieder anzeigen" : "Verstecken"}
                 </button>
@@ -118,15 +175,25 @@
         <div><dt>Starts</dt><dd>{game.playCount}</dd></div>
       </dl>
     </div>
+    {#if game.summary}
+      <section class="panel">
+        <h2>Über das Spiel</h2>
+        <p class="summary">{game.summary}</p>
+      </section>
+    {/if}
     <section class="panel">
       <h2>Tags</h2>
       <TagEditor {game} />
     </section>
   </div>
+  {#if picker}
+    <ArtPicker {game} kind={picker} onclose={() => (picker = null)} />
+  {/if}
 {/if}
 
 <style>
   .detail {
+    position: relative;
     flex: 1;
     height: 100vh;
     padding: 32px clamp(24px, 5vw, 120px) 64px;
@@ -135,7 +202,42 @@
     gap: 40px;
   }
   .back {
+    position: relative;
     align-self: flex-start;
+    background: rgba(14, 15, 18, 0.6);
+  }
+  .hero {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 520px;
+    background: linear-gradient(115deg, var(--a) 0%, var(--b) 75%, var(--bg) 100%);
+    overflow: hidden;
+  }
+  .hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 25%;
+  }
+  .fade {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(14, 15, 18, 0.15) 0%, rgba(14, 15, 18, 0.55) 55%, var(--bg) 100%);
+  }
+  .top,
+  .panel {
+    position: relative;
+  }
+  .top {
+    margin-top: 180px;
+  }
+  .summary {
+    margin: 0;
+    line-height: 1.6;
+    color: var(--text-2);
+    max-width: 960px;
   }
   .top {
     display: flex;
@@ -144,8 +246,34 @@
     flex-wrap: wrap;
   }
   .cover {
+    position: relative;
     width: 260px;
     flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    border-radius: 18px;
+  }
+  .cover-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: rgba(10, 11, 14, 0.85);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .cover:hover .cover-hint,
+  .cover:focus-visible .cover-hint {
+    opacity: 1;
   }
   .info {
     flex: 1;
@@ -220,6 +348,9 @@
     background: transparent;
     text-align: left;
     font-size: 14px;
+  }
+  .menu button:disabled {
+    opacity: 0.5;
   }
   .menu button:hover {
     background: var(--surface-3);

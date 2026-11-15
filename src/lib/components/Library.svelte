@@ -2,8 +2,17 @@
   import { app } from "$lib/state.svelte";
   import GameGrid from "./GameGrid.svelte";
   import GameList from "./GameList.svelte";
+  import HeroBanner from "./HeroBanner.svelte";
   import Icon from "./Icon.svelte";
   import Toolbar from "./Toolbar.svelte";
+
+  // Most recently played game, shown on the start page.
+  let continueGame = $derived.by(() => {
+    if (app.source.kind !== "all" || app.query.search) return null;
+    return app.games
+      .filter((g) => g.lastPlayed && !g.hidden)
+      .sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0))[0] ?? null;
+  });
 
   let title = $derived.by(() => {
     switch (app.source.kind) {
@@ -39,6 +48,7 @@
       </button>
     </section>
   {:else}
+    {#if continueGame}<HeroBanner game={continueGame} />{/if}
     <Toolbar {title} count={app.visible.length} />
     {#if app.visible.length}
       {#if app.layout.mode === "list"}
