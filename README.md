@@ -15,6 +15,10 @@ Der Plan steht in [docs/PLAN.md](docs/PLAN.md).
 | `src` | Oberfläche (SvelteKit + TypeScript) |
 
 Daten liegen unter `%APPDATA%\PRVDS\GameLauncher` (Datenbank, verschobene Verknüpfungen, Journal, Cover).
+
+Beim Import merkt sich die App neben dem Originalpfad auch die Position jedes Icons auf dem Desktop.
+„Zurück auf den Desktop“ legt die Verknüpfung wieder an dieselbe Stelle (außer wenn „Automatisch anordnen“ aktiv ist).
+
 API-Keys für SteamGridDB und IGDB werden in der Windows-Anmeldeinformationsverwaltung gespeichert.
 
 ## Entwicklung

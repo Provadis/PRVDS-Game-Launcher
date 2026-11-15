@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use serde::{Deserialize, Serialize};
 
+use crate::desktop_icons::IconPosition;
 use crate::error::{Error, IoContext, Result};
 use crate::util::now;
 
@@ -35,6 +36,9 @@ pub struct JournalEntry {
     pub stored_path: String,
     pub moved_at: i64,
     pub state: EntryState,
+    /// Where the icon sat on the desktop before the import, if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desktop_position: Option<IconPosition>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -124,6 +128,16 @@ impl Importer {
 
     /// Moves one shortcut into the library folder.
     pub fn move_in(&self, src: &Path) -> Result<JournalEntry> {
+        self.move_in_at(src, None)
+    }
+
+    /// Like [`Importer::move_in`], and remembers the icon's desktop position
+    /// so a later restore can put it back on the same spot.
+    pub fn move_in_at(
+        &self,
+        src: &Path,
+        desktop_position: Option<IconPosition>,
+    ) -> Result<JournalEntry> {
         let file_name = src
             .file_name()
             .ok_or_else(|| Error::Other(format!("Ungültiger Pfad: {}", src.display())))?;
@@ -136,6 +150,7 @@ impl Importer {
             stored_path: dest.to_string_lossy().into_owned(),
             moved_at: now(),
             state: EntryState::Pending,
+            desktop_position,
         };
         let mut journal = self.load()?;
         journal.entries.push(entry.clone());
@@ -331,6 +346,7 @@ mod tests {
                     stored_path: stored.to_string_lossy().into(),
                     moved_at: 0,
                     state: EntryState::Pending,
+                    desktop_position: None,
                 },
                 JournalEntry {
                     id: "b".into(),
@@ -338,6 +354,7 @@ mod tests {
                     stored_path: stored_b.to_string_lossy().into(),
                     moved_at: 0,
                     state: EntryState::Pending,
+                    desktop_position: None,
                 },
             ],
         };
@@ -349,6 +366,25 @@ mod tests {
         assert!(src.exists() && !stored.exists());
         assert_eq!(imp.entries().unwrap().len(), 1);
         assert_eq!(imp.entry("b").unwrap().state, EntryState::Moved);
+    }
+
+    #[test]
+    fn keeps_desktop_position() {
+        let (_tmp, desktop, imp) = setup();
+        let src = desktop.join("Game.lnk");
+        fs::write(&src, b"x").unwrap();
+        let pos = IconPosition { x: 120, y: 340 };
+        let e = imp.move_in_at(&src, Some(pos)).unwrap();
+        assert_eq!(imp.entry(&e.id).unwrap().desktop_position, Some(pos));
+        imp.restore(&e.id).unwrap();
+        assert_eq!(imp.entry(&e.id).unwrap().desktop_position, Some(pos));
+    }
+
+    #[test]
+    fn reads_old_journal_without_position() {
+        let json = r#"{"id":"a","originalPath":"C:/a.lnk","storedPath":"D:/a.lnk","movedAt":1,"state":"moved"}"#;
+        let e: JournalEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(e.desktop_position, None);
     }
 
     #[test]

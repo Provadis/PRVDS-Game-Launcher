@@ -2,7 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
+use std::collections::HashMap;
+use std::time::Duration;
+
 use launcher_core::artwork::{ArtKind, ArtOption, ArtworkKeys};
+use launcher_core::desktop_icons::{self, IconPosition};
 use launcher_core::locate::locate;
 use launcher_core::model::{Collection, Game, GamePatch, NewGame, Session};
 use launcher_core::playtime::Matcher;
@@ -59,8 +63,11 @@ pub fn import_shortcuts(
 ) -> ImportReport {
     let mut imported = Vec::new();
     let mut failed = Vec::new();
+    // Remember where the icons sat, so "back to desktop" can put them there again.
+    let positions = desktop_icons::read_positions();
     for path in paths {
-        match import_one(&state, Path::new(&path)) {
+        let pos = desktop_position(&positions, Path::new(&path));
+        match import_one(&state, Path::new(&path), pos) {
             Ok(game) => imported.push(game),
             Err(error) => failed.push(ImportFailure { path, error }),
         }
@@ -70,9 +77,23 @@ pub fn import_shortcuts(
     ImportReport { imported, failed }
 }
 
-fn import_one(state: &AppState, path: &Path) -> CmdResult<Game> {
+/// The icon position of `path`, if the file lies directly on the desktop.
+fn desktop_position(
+    positions: &HashMap<String, IconPosition>,
+    path: &Path,
+) -> Option<IconPosition> {
+    let on_desktop = path
+        .parent()
+        .is_some_and(|dir| scanner::desktop_dirs().iter().any(|d| d == dir));
+    let name = path.file_name()?.to_string_lossy();
+    on_desktop
+        .then(|| positions.get(&desktop_icons::key(&name)).copied())
+        .flatten()
+}
+
+fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdResult<Game> {
     let candidate = scanner::inspect(path).ok_or("Keine Verknüpfung")?;
-    let entry = state.importer.move_in(path).map_err(err)?;
+    let entry = state.importer.move_in_at(path, pos).map_err(err)?;
     let install = locate(
         candidate.platform,
         candidate.platform_id.as_deref(),
@@ -251,17 +272,45 @@ pub fn sessions(state: State<AppState>, id: i64) -> CmdResult<Vec<Session>> {
 /// Puts the shortcut back on the desktop and removes the game from the library.
 #[tauri::command]
 pub fn undo_import(state: State<AppState>, id: i64) -> CmdResult<String> {
+    let (restored, pos) = restore_game(&state, id)?;
+    place_icons(pos.into_iter().collect());
+    Ok(restored.to_string_lossy().into_owned())
+}
+
+/// Puts a game's shortcut back and removes the game. Returns the restored
+/// path and, if known, the icon's old desktop position for that file.
+fn restore_game(state: &AppState, id: i64) -> CmdResult<(PathBuf, Option<(String, IconPosition)>)> {
     let lib = state.lib.lock().unwrap();
     let game = lib.game(id).map_err(err)?;
     let journal_id = game
         .journal_id
         .clone()
         .ok_or("Für dieses Spiel gibt es keinen Import-Eintrag")?;
+    let position = state
+        .importer
+        .entry(&journal_id)
+        .ok()
+        .and_then(|e| e.desktop_position);
     let restored = state.importer.restore(&journal_id).map_err(err)?;
     lib.delete_game(id).map_err(err)?;
-    remove_art_file(&state, game.cover_path.as_deref());
-    remove_art_file(&state, game.hero_path.as_deref());
-    Ok(restored.to_string_lossy().into_owned())
+    remove_art_file(state, game.cover_path.as_deref());
+    remove_art_file(state, game.hero_path.as_deref());
+    let placement = position.zip(
+        restored
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned()),
+    );
+    Ok((restored, placement.map(|(p, n)| (n, p))))
+}
+
+/// Moves restored icons back to their old spots, in the background: Explorer
+/// needs a moment to show new files before they can be positioned.
+fn place_icons(items: Vec<(String, IconPosition)>) {
+    if !items.is_empty() {
+        std::thread::spawn(move || {
+            desktop_icons::apply_positions_when_visible(items, Duration::from_secs(5))
+        });
+    }
 }
 
 #[derive(Serialize)]
@@ -276,15 +325,20 @@ pub fn restore_all(state: State<AppState>) -> CmdResult<RestoreReport> {
     let games = state.lib.lock().unwrap().games().map_err(err)?;
     let mut restored = 0;
     let mut failed = Vec::new();
+    let mut placements = Vec::new();
     for g in games.into_iter().filter(|g| g.journal_id.is_some()) {
-        match undo_import(state.clone(), g.id) {
-            Ok(_) => restored += 1,
+        match restore_game(&state, g.id) {
+            Ok((_, placement)) => {
+                restored += 1;
+                placements.extend(placement);
+            }
             Err(error) => failed.push(ImportFailure {
                 path: g.shortcut_path,
                 error,
             }),
         }
     }
+    place_icons(placements);
     Ok(RestoreReport { restored, failed })
 }
 
