@@ -157,7 +157,7 @@ pub fn steam_install_dir(steam_root: &Path, appid: &str) -> Option<PathBuf> {
 
 // ---- Epic -------------------------------------------------------------------
 
-fn epic_manifest_dir() -> Option<PathBuf> {
+pub(crate) fn epic_manifest_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     {
         let base = std::env::var_os("ProgramData")

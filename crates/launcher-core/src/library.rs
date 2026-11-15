@@ -5,11 +5,12 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use crate::error::{Error, Result};
-use crate::model::{Collection, Game, GamePatch, NewGame, Platform, Session};
+use crate::model::{Collection, Game, GamePatch, GameSource, NewGame, Platform, Session};
 use crate::query::{SavedView, ViewDefinition};
 use crate::util::now;
 
-const MIGRATIONS: &[&str] = &[r#"
+const MIGRATIONS: &[&str] = &[
+    r#"
 CREATE TABLE games (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -67,7 +68,14 @@ CREATE TABLE sessions (
     duration_secs INTEGER NOT NULL
 );
 CREATE INDEX sessions_game ON sessions(game_id, started_at);
-"#];
+"#,
+    // 0.4: games read straight from the launchers.
+    r#"
+ALTER TABLE games ADD COLUMN launch_args TEXT;
+ALTER TABLE games ADD COLUMN source TEXT NOT NULL DEFAULT 'desktop';
+ALTER TABLE games ADD COLUMN installed INTEGER NOT NULL DEFAULT 1;
+"#,
+];
 
 pub struct Library {
     conn: Connection,
@@ -75,7 +83,7 @@ pub struct Library {
 
 const GAME_COLUMNS: &str = "id, name, platform, platform_id, shortcut_path, original_path, journal_id, \
     launch_target, install_dir, process_exe, cover_path, hero_path, added_at, last_played, play_count, \
-    playtime_secs, favorite, hidden, genre, release_year, developer, summary";
+    playtime_secs, favorite, hidden, genre, release_year, developer, summary, launch_args, source, installed";
 
 fn game_from_row(row: &Row) -> rusqlite::Result<Game> {
     Ok(Game {
@@ -87,6 +95,9 @@ fn game_from_row(row: &Row) -> rusqlite::Result<Game> {
         original_path: row.get(5)?,
         journal_id: row.get(6)?,
         launch_target: row.get(7)?,
+        launch_args: row.get(22)?,
+        source: GameSource::parse(&row.get::<_, String>(23)?),
+        installed: row.get(24)?,
         install_dir: row.get(8)?,
         process_exe: row.get(9)?,
         cover_path: row.get(10)?,
@@ -138,7 +149,8 @@ impl Library {
     pub fn add_game(&self, g: &NewGame) -> Result<Game> {
         self.conn.execute(
             "INSERT INTO games (name, platform, platform_id, shortcut_path, original_path, journal_id, \
-             launch_target, install_dir, process_exe, added_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             launch_target, install_dir, process_exe, added_at, launch_args, source) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 g.name,
                 g.platform.unwrap_or(Platform::Other).as_str(),
@@ -149,10 +161,44 @@ impl Library {
                 g.launch_target,
                 g.install_dir,
                 g.process_exe,
-                now()
+                now(),
+                g.launch_args,
+                g.source.as_str()
             ],
         )?;
         self.game(self.conn.last_insert_rowid())
+    }
+
+    /// Marks a game as (not) installed, e.g. after a launcher sync.
+    pub fn set_installed(&self, id: i64, installed: bool) -> Result<()> {
+        self.conn.execute(
+            "UPDATE games SET installed = ?2 WHERE id = ?1",
+            params![id, installed],
+        )?;
+        Ok(())
+    }
+
+    /// Fills in store data a launcher knows and the game lacks (a desktop
+    /// import without platform id, say). Never overwrites what is set.
+    pub fn fill_store_info(
+        &self,
+        id: i64,
+        platform: Platform,
+        platform_id: &str,
+        install_dir: Option<&str>,
+        process_exe: Option<&str>,
+    ) -> Result<Game> {
+        self.conn.execute(
+            "UPDATE games SET \
+               platform = CASE WHEN platform = 'other' THEN ?2 ELSE platform END, \
+               platform_id = COALESCE(platform_id, ?3), \
+               install_dir = COALESCE(install_dir, ?4), \
+               process_exe = COALESCE(process_exe, ?5), \
+               installed = 1 \
+             WHERE id = ?1",
+            params![id, platform.as_str(), platform_id, install_dir, process_exe],
+        )?;
+        self.game(id)
     }
 
     pub fn game(&self, id: i64) -> Result<Game> {
@@ -509,6 +555,67 @@ mod tests {
             shortcut_path: format!("C:/lib/{name}.url"),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn connector_games() {
+        let lib = Library::open_in_memory().unwrap();
+        let riot = lib
+            .add_game(&NewGame {
+                name: "VALORANT".into(),
+                platform: Some(Platform::Riot),
+                platform_id: Some("valorant".into()),
+                launch_target: Some("C:/Riot Games/Riot Client/RiotClientServices.exe".into()),
+                launch_args: Some("--launch-product=valorant --launch-patchline=live".into()),
+                source: GameSource::Connector,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(riot.source, GameSource::Connector);
+        assert!(riot.installed && riot.shortcut_path.is_empty());
+        assert!(riot.launch_args.unwrap().contains("valorant"));
+        lib.set_installed(riot.id, false).unwrap();
+        assert!(!lib.game(riot.id).unwrap().installed);
+
+        // A desktop import without store data gets it filled in, nothing overwritten.
+        let desk = lib
+            .add_game(&NewGame {
+                name: "Diablo IV".into(),
+                shortcut_path: "C:/lib/Diablo IV.lnk".into(),
+                install_dir: Some("D:/Games/Diablo IV".into()),
+                ..Default::default()
+            })
+            .unwrap();
+        let filled = lib
+            .fill_store_info(
+                desk.id,
+                Platform::Battlenet,
+                "Fen",
+                Some("C:/other"),
+                Some("Diablo IV.exe"),
+            )
+            .unwrap();
+        assert_eq!(filled.platform, Platform::Battlenet);
+        assert_eq!(filled.platform_id.as_deref(), Some("Fen"));
+        assert_eq!(filled.install_dir.as_deref(), Some("D:/Games/Diablo IV"));
+        assert_eq!(filled.process_exe.as_deref(), Some("Diablo IV.exe"));
+        assert_eq!(filled.source, GameSource::Desktop);
+    }
+
+    #[test]
+    fn migrates_a_v1_database() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&format!("{} PRAGMA user_version = 1;", MIGRATIONS[0]))
+            .unwrap();
+        conn.execute(
+            "INSERT INTO games (name, platform, shortcut_path, added_at) VALUES ('Old', 'steam', 'x.url', 1)",
+            [],
+        )
+        .unwrap();
+        let lib = Library::init(conn).unwrap();
+        let g = &lib.games().unwrap()[0];
+        assert_eq!(g.source, GameSource::Desktop);
+        assert!(g.installed && g.launch_args.is_none());
     }
 
     #[test]

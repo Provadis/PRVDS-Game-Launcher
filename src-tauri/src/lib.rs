@@ -20,6 +20,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::scan_desktop,
             commands::import_shortcuts,
+            commands::scan_launchers,
+            commands::import_launcher_games,
+            commands::sync_launchers,
             commands::list_games,
             commands::query_games,
             commands::get_game,

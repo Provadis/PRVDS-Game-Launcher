@@ -6,10 +6,11 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use launcher_core::artwork::{ArtKind, ArtOption, ArtworkKeys};
+use launcher_core::connectors::{self, CONNECTOR_PLATFORMS, InstalledGame};
 use launcher_core::desktop_icons::{self, IconPosition};
 use launcher_core::importer::EntryState;
 use launcher_core::locate::locate;
-use launcher_core::model::{Collection, Game, GamePatch, NewGame, Session};
+use launcher_core::model::{Collection, Game, GamePatch, GameSource, NewGame, Platform, Session};
 use launcher_core::playtime::Matcher;
 use launcher_core::query::{GameQuery, SavedView, ViewDefinition};
 use launcher_core::scanner::{self, Candidate};
@@ -139,6 +140,7 @@ fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdRe
         launch_target: candidate.info.target,
         install_dir: install.install_dir,
         process_exe: install.process_exe,
+        ..Default::default()
     };
     let lib = state.lib.lock().unwrap();
     match lib.add_game(&new) {
@@ -149,6 +151,145 @@ fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdRe
             Err(err(e))
         }
     }
+}
+
+// ---- launchers (connectors) ---------------------------------------------------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LauncherCandidate {
+    game: InstalledGame,
+    /// The library game it matches, if any.
+    existing_id: Option<i64>,
+}
+
+/// All games installed in the given launchers (all when empty).
+#[tauri::command]
+pub async fn scan_launchers(
+    app: AppHandle,
+    platforms: Vec<Platform>,
+) -> CmdResult<Vec<LauncherCandidate>> {
+    blocking(move || {
+        let platforms = if platforms.is_empty() {
+            CONNECTOR_PLATFORMS.to_vec()
+        } else {
+            platforms
+        };
+        let found = connectors::scan(&platforms);
+        let games = app
+            .state::<AppState>()
+            .lib
+            .lock()
+            .unwrap()
+            .games()
+            .map_err(err)?;
+        Ok(found
+            .into_iter()
+            .map(|g| LauncherCandidate {
+                existing_id: connectors::match_existing(&g, &games).map(|x| x.id),
+                game: g,
+            })
+            .collect())
+    })
+    .await
+}
+
+/// Adds launcher games to the library. Games that are already there (e.g.
+/// from a desktop shortcut) only get the missing store data filled in.
+#[tauri::command]
+pub fn import_launcher_games(
+    app: AppHandle,
+    state: State<AppState>,
+    games: Vec<InstalledGame>,
+) -> CmdResult<Vec<Game>> {
+    let lib = state.lib.lock().unwrap();
+    let existing = lib.games().map_err(err)?;
+    let mut out = Vec::new();
+    let mut new_ids = Vec::new();
+    for g in games {
+        let game = match connectors::match_existing(&g, &existing) {
+            Some(known) => lib
+                .fill_store_info(
+                    known.id,
+                    g.platform,
+                    &g.platform_id,
+                    g.install_dir.as_deref(),
+                    g.process_exe.as_deref(),
+                )
+                .map_err(err)?,
+            None => {
+                let (target, args) = g.launch_parts();
+                let added = lib
+                    .add_game(&NewGame {
+                        name: g.name.clone(),
+                        platform: Some(g.platform),
+                        platform_id: Some(g.platform_id.clone()),
+                        launch_target: Some(target),
+                        launch_args: args,
+                        install_dir: g.install_dir.clone(),
+                        process_exe: g.process_exe.clone(),
+                        source: GameSource::Connector,
+                        ..Default::default()
+                    })
+                    .map_err(err)?;
+                new_ids.push(added.id);
+                added
+            }
+        };
+        out.push(game);
+    }
+    drop(lib);
+    std::thread::spawn(move || enrich_games(app, new_ids));
+    Ok(out)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncReport {
+    /// Games newly found in the launchers that are not in the library yet.
+    new_games: usize,
+    /// Connector games no launcher has any more.
+    uninstalled: Vec<Game>,
+    /// Games that were marked uninstalled and are back.
+    reinstalled: Vec<Game>,
+}
+
+/// Start-up check: which connector games are (still) installed?
+#[tauri::command]
+pub async fn sync_launchers(app: AppHandle) -> CmdResult<SyncReport> {
+    blocking(move || {
+        let found = connectors::scan(&CONNECTOR_PLATFORMS);
+        let state = app.state::<AppState>();
+        let lib = state.lib.lock().unwrap();
+        let games = lib.games().map_err(err)?;
+        let mut report = SyncReport {
+            new_games: 0,
+            uninstalled: Vec::new(),
+            reinstalled: Vec::new(),
+        };
+        let mut seen = std::collections::HashSet::new();
+        for f in &found {
+            match connectors::match_existing(f, &games) {
+                Some(g) => {
+                    seen.insert(g.id);
+                    if !g.installed {
+                        lib.set_installed(g.id, true).map_err(err)?;
+                        report.reinstalled.push(lib.game(g.id).map_err(err)?);
+                    }
+                }
+                None => report.new_games += 1,
+            }
+        }
+        for g in games
+            .iter()
+            .filter(|g| g.source == GameSource::Connector && g.installed && !seen.contains(&g.id))
+        {
+            lib.set_installed(g.id, false).map_err(err)?;
+            report.uninstalled.push(lib.game(g.id).map_err(err)?);
+        }
+        Ok(report)
+    })
+    .await
 }
 
 /// Fetches covers, hero images and metadata for freshly imported games.
@@ -255,13 +396,7 @@ pub fn update_game(state: State<AppState>, id: i64, patch: GamePatch) -> CmdResu
 #[tauri::command]
 pub fn launch_game(app: AppHandle, state: State<AppState>, id: i64) -> CmdResult<Game> {
     let game = state.lib.lock().unwrap().game(id).map_err(err)?;
-    if !Path::new(&game.shortcut_path).exists() {
-        return Err(format!(
-            "Verknüpfung nicht gefunden: {}",
-            game.shortcut_path
-        ));
-    }
-    open::that_detached(&game.shortcut_path).map_err(err)?;
+    start(&game)?;
     let at = now();
     let lib = state.lib.lock().unwrap();
     lib.record_launch(id, at).map_err(err)?;
@@ -276,6 +411,58 @@ pub fn launch_game(app: AppHandle, state: State<AppState>, id: i64) -> CmdResult
     let game = lib.game(id).map_err(err)?;
     let _ = app.emit("game-updated", game.clone());
     Ok(game)
+}
+
+/// Starts a game: through its shortcut (desktop imports) or straight via the
+/// store URL / exe the launcher told us (connector games).
+fn start(game: &Game) -> CmdResult<()> {
+    if !game.shortcut_path.is_empty() {
+        if !Path::new(&game.shortcut_path).exists() {
+            return Err(format!(
+                "Verknüpfung nicht gefunden: {}",
+                game.shortcut_path
+            ));
+        }
+        return open::that_detached(&game.shortcut_path).map_err(err);
+    }
+    let target = game
+        .launch_target
+        .as_deref()
+        .ok_or("Für dieses Spiel ist nicht bekannt, wie es gestartet wird")?;
+    if target.contains("://") {
+        return open::that_detached(target).map_err(err);
+    }
+    if !Path::new(target).exists() {
+        return Err(format!("Programm nicht gefunden: {target}"));
+    }
+    let mut cmd = std::process::Command::new(target);
+    cmd.args(split_args(game.launch_args.as_deref().unwrap_or("")));
+    if let Some(dir) = Path::new(target).parent() {
+        cmd.current_dir(dir);
+    }
+    cmd.spawn().map(|_| ()).map_err(err)
+}
+
+/// Splits a command line into arguments, keeping "quoted parts" together.
+fn split_args(args: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut quoted = false;
+    for c in args.chars() {
+        match c {
+            '"' => quoted = !quoted,
+            c if c.is_whitespace() && !quoted => {
+                if !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                }
+            }
+            c => cur.push(c),
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
 }
 
 #[tauri::command]

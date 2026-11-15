@@ -61,6 +61,34 @@ impl Platform {
     }
 }
 
+/// How a game got into the library.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GameSource {
+    /// Imported from a desktop shortcut.
+    #[default]
+    Desktop,
+    /// Read from a launcher's install data.
+    Connector,
+}
+
+impl GameSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            GameSource::Desktop => "desktop",
+            GameSource::Connector => "connector",
+        }
+    }
+
+    pub fn parse(s: &str) -> GameSource {
+        if s == "connector" {
+            GameSource::Connector
+        } else {
+            GameSource::Desktop
+        }
+    }
+}
+
 /// A game in the library.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,7 +98,8 @@ pub struct Game {
     pub platform: Platform,
     /// Store specific id (Steam AppID, Epic app name, Ubisoft id, ...).
     pub platform_id: Option<String>,
-    /// Shortcut file inside the library folder that is opened to start the game.
+    /// Shortcut file inside the library folder that is opened to start the
+    /// game. Empty for connector games.
     pub shortcut_path: String,
     /// Where the shortcut lived before it was imported.
     pub original_path: Option<String>,
@@ -78,6 +107,12 @@ pub struct Game {
     pub journal_id: Option<String>,
     /// Target of a `.lnk` (exe path) or URL of a `.url`.
     pub launch_target: Option<String>,
+    /// Arguments for an exe `launch_target` (connector games, e.g. Riot).
+    pub launch_args: Option<String>,
+    /// Where the game came from.
+    pub source: GameSource,
+    /// False once a launcher sync no longer finds the game.
+    pub installed: bool,
     pub install_dir: Option<String>,
     /// Exe file name used to detect the running game for playtime tracking.
     pub process_exe: Option<String>,
@@ -104,10 +139,13 @@ pub struct NewGame {
     pub name: String,
     pub platform: Option<Platform>,
     pub platform_id: Option<String>,
+    /// Empty for connector games, which have no shortcut.
     pub shortcut_path: String,
     pub original_path: Option<String>,
     pub journal_id: Option<String>,
     pub launch_target: Option<String>,
+    pub launch_args: Option<String>,
+    pub source: GameSource,
     pub install_dir: Option<String>,
     pub process_exe: Option<String>,
 }

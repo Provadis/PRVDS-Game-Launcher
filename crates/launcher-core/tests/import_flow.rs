@@ -62,6 +62,7 @@ fn desktop_to_library_and_back() {
             launch_target: c.info.target.clone(),
             install_dir: install.install_dir,
             process_exe: install.process_exe,
+            ..Default::default()
         })
         .unwrap();
     }

@@ -5,6 +5,7 @@
 //! sit behind `cfg(windows)`.
 
 pub mod artwork;
+pub mod connectors;
 pub mod desktop_icons;
 pub mod error;
 pub mod importer;
