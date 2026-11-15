@@ -122,6 +122,10 @@
     <span>PRVDS</span>
   </div>
 
+  <button class="quick" onclick={() => (app.quickOpen = true)} title={t("Schnellstart (Strg+K)")}>
+    <Icon name="search" size={16} /><span>{t("Schnellstart")}</span><kbd>{t("Strg")} K</kbd>
+  </button>
+
   <div class="group">
     <button class="item" class:active={isActive({ kind: "all" })} onclick={() => app.selectSource({ kind: "all" })}>
       <Icon name="grid" />{t("Alle Spiele")}<span class="count">{app.games.filter((g) => !g.hidden).length}</span>
@@ -233,6 +237,34 @@
     border-right: 1px solid var(--border);
     overflow-y: auto;
     scrollbar-width: thin;
+  }
+  .quick {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 4px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 14px;
+    text-align: left;
+  }
+  .quick:hover,
+  .quick:focus-visible {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .quick span {
+    flex: 1;
+  }
+  .quick kbd {
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--border-strong);
+    font: 600 11px/1.5 inherit;
+    color: var(--text-2);
   }
   .brand {
     display: flex;

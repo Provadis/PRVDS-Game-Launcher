@@ -42,6 +42,8 @@ class AppState {
   visibleIds = $state<number[]>([]);
   loaded = $state(false);
   toasts = $state<Toast[]>([]);
+  /** Quick launch search (Ctrl+K). */
+  quickOpen = $state(false);
 
   visible = $derived(this.visibleIds.map((id) => this.byId.get(id)).filter((g): g is Game => !!g));
 
