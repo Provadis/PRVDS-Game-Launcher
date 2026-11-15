@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { emptyQuery, type Board, type Collection, type Game, type GameQuery, type Layout, type SavedView } from "./types";
+import { t } from "./i18n.svelte";
 
 export type Screen =
   | { kind: "library" }
@@ -157,7 +158,7 @@ class AppState {
   async launch(id: number) {
     try {
       this.upsert(await api.launchGame(id));
-      this.toast(`${this.byId.get(id)?.name ?? "Spiel"} wird gestartet`);
+      this.toast(t("{name} wird gestartet", { name: this.byId.get(id)?.name ?? t("Spiel") }));
     } catch (e) {
       this.error(e);
     }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { app } from "$lib/state.svelte";
   import { PLATFORMS, SORT_FIELDS, type Platform, type SortField } from "$lib/types";
   import Icon from "./Icon.svelte";
@@ -53,18 +54,18 @@
 <div class="bar">
   <div class="row">
     <h2>{title}</h2>
-    <span class="muted count">{count} {count === 1 ? "Spiel" : "Spiele"}</span>
+    <span class="muted count">{count === 1 ? t("1 Spiel") : t("{n} Spiele", { n: count })}</span>
     <label class="search">
       <Icon name="search" />
-      <span class="sr-only">Suche</span>
-      <input type="search" placeholder="Spiele durchsuchen" bind:value={app.query.search} />
+      <span class="sr-only">{t("Suche")}</span>
+      <input type="search" placeholder={t("Spiele durchsuchen")} bind:value={app.query.search} />
     </label>
     <span class="spacer"></span>
     <label class="select">
-      <span class="muted">Sortieren:</span>
-      <select value={app.query.sort} onchange={setSort} aria-label="Sortieren nach">
+      <span class="muted">{t("Sortieren:")}</span>
+      <select value={app.query.sort} onchange={setSort} aria-label={t("Sortieren nach")}>
         {#each SORT_FIELDS as f (f.id)}
-          <option value={f.id}>{f.label}</option>
+          <option value={f.id}>{t(f.label)}</option>
         {/each}
       </select>
       <Icon name="chevronDown" size={14} />
@@ -72,18 +73,18 @@
     <button
       class="btn icon"
       onclick={() => (app.query.descending = !app.query.descending)}
-      aria-label={app.query.descending ? "Absteigend" : "Aufsteigend"}
-      title={app.query.descending ? "Absteigend" : "Aufsteigend"}>
+      aria-label={app.query.descending ? t("Absteigend") : t("Aufsteigend")}
+      title={app.query.descending ? t("Absteigend") : t("Aufsteigend")}>
       <Icon name={app.query.descending ? "arrowDown" : "arrowUp"} />
     </button>
     <button class="btn" class:on={filtersOpen || activeFilters} onclick={() => (filtersOpen = !filtersOpen)} aria-expanded={filtersOpen}>
-      <Icon name="filter" size={16} />Filter{#if activeFilters}<span class="badge">{activeFilters}</span>{/if}
+      <Icon name="filter" size={16} />{t("Filter")}{#if activeFilters}<span class="badge">{activeFilters}</span>{/if}
     </button>
-    <div class="seg" role="group" aria-label="Layout">
-      <button class:active={app.layout.mode === "grid"} onclick={() => (app.layout.mode = "grid")} aria-label="Grid">
+    <div class="seg" role="group" aria-label={t("Layout")}>
+      <button class:active={app.layout.mode === "grid"} onclick={() => (app.layout.mode = "grid")} aria-label={t("Grid")}>
         <Icon name="grid" />
       </button>
-      <button class:active={app.layout.mode === "list"} onclick={() => (app.layout.mode = "list")} aria-label="Liste">
+      <button class:active={app.layout.mode === "list"} onclick={() => (app.layout.mode = "list")} aria-label={t("Liste")}>
         <Icon name="list" />
       </button>
     </div>
@@ -91,86 +92,86 @@
 
   <div class="row chips">
     {#if usedPlatforms.length > 1}
-      <button class="chip" class:active={app.query.platforms.length === 0} onclick={() => (app.query.platforms = [])}>Alle</button>
+      <button class="chip" class:active={app.query.platforms.length === 0} onclick={() => (app.query.platforms = [])}>{t("Alle")}</button>
       {#each usedPlatforms as p (p.id)}
-        <button class="chip" class:active={app.query.platforms.includes(p.id)} onclick={() => togglePlatform(p.id)}>{p.label}</button>
+        <button class="chip" class:active={app.query.platforms.includes(p.id)} onclick={() => togglePlatform(p.id)}>{t(p.label)}</button>
       {/each}
     {/if}
     <span class="spacer"></span>
     {#if app.layout.mode === "grid"}
-      <label class="size" title="Covergröße">
-        <span class="sr-only">Covergröße</span>
+      <label class="size" title={t("Covergröße")}>
+        <span class="sr-only">{t("Covergröße")}</span>
         <Icon name="image" size={16} />
         <input type="range" min="140" max="320" step="10" bind:value={app.layout.coverSize} />
       </label>
     {/if}
     {#if onSaveView}
-      <button class="btn" onclick={onSaveView}><Icon name="layers" size={16} />Ansicht speichern</button>
+      <button class="btn" onclick={onSaveView}><Icon name="layers" size={16} />{t("Ansicht speichern")}</button>
     {/if}
   </div>
 
   {#if filtersOpen}
     <div class="filters">
       <fieldset>
-        <legend>Gespielt</legend>
+        <legend>{t("Gespielt")}</legend>
         <div class="opts">
-          <button class="chip" class:active={app.query.played === "any"} onclick={() => (app.query.played = "any")}>Alle</button>
-          <button class="chip" class:active={app.query.played === "played"} onclick={() => (app.query.played = "played")}>Gespielt</button>
-          <button class="chip" class:active={app.query.played === "neverPlayed"} onclick={() => (app.query.played = "neverPlayed")}>Noch nie gespielt</button>
+          <button class="chip" class:active={app.query.played === "any"} onclick={() => (app.query.played = "any")}>{t("Alle")}</button>
+          <button class="chip" class:active={app.query.played === "played"} onclick={() => (app.query.played = "played")}>{t("Gespielt")}</button>
+          <button class="chip" class:active={app.query.played === "neverPlayed"} onclick={() => (app.query.played = "neverPlayed")}>{t("Noch nie gespielt")}</button>
         </div>
       </fieldset>
       <fieldset>
-        <legend>Zeitraum</legend>
+        <legend>{t("Zeitraum")}</legend>
         <div class="opts">
           <label class="inline">
-            Nicht gespielt seit
+            {t("Nicht gespielt seit")}
             <select
               value={app.query.notPlayedForDays ?? ""}
               onchange={(e) => (app.query.notPlayedForDays = e.currentTarget.value ? +e.currentTarget.value : null)}>
               <option value="">–</option>
-              <option value="30">1 Monat</option>
-              <option value="90">3 Monaten</option>
-              <option value="180">6 Monaten</option>
-              <option value="365">1 Jahr</option>
+              <option value="30">{t("1 Monat")}</option>
+              <option value="90">{t("3 Monaten")}</option>
+              <option value="180">{t("6 Monaten")}</option>
+              <option value="365">{t("1 Jahr")}</option>
             </select>
           </label>
           <label class="inline">
-            Gespielt in den letzten
+            {t("Gespielt in den letzten")}
             <select
               value={app.query.playedWithinDays ?? ""}
               onchange={(e) => (app.query.playedWithinDays = e.currentTarget.value ? +e.currentTarget.value : null)}>
               <option value="">–</option>
-              <option value="7">7 Tagen</option>
-              <option value="30">30 Tagen</option>
-              <option value="90">90 Tagen</option>
+              <option value="7">{t("{n} Tagen", { n: 7 })}</option>
+              <option value="30">{t("{n} Tagen", { n: 30 })}</option>
+              <option value="90">{t("{n} Tagen", { n: 90 })}</option>
             </select>
           </label>
         </div>
       </fieldset>
       {#if genres.length}
         <fieldset>
-          <legend>Genre</legend>
+          <legend>{t("Genre")}</legend>
           <select class="genre" value={app.query.genre ?? ""} onchange={(e) => (app.query.genre = e.currentTarget.value || null)}>
-            <option value="">Alle Genres</option>
+            <option value="">{t("Alle Genres")}</option>
             {#each genres as g (g)}<option value={g}>{g}</option>{/each}
           </select>
         </fieldset>
       {/if}
       {#if app.tags.length}
         <fieldset>
-          <legend>Tags</legend>
+          <legend>{t("Tags")}</legend>
           <div class="opts">
-            {#each app.tags as t (t)}
-              <button class="chip" class:active={app.query.tags.includes(t)} onclick={() => toggleTag(t)}>{t}</button>
+            {#each app.tags as tag (tag)}
+              <button class="chip" class:active={app.query.tags.includes(tag)} onclick={() => toggleTag(tag)}>{tag}</button>
             {/each}
           </div>
         </fieldset>
       {/if}
       <fieldset>
-        <legend>Sonstiges</legend>
-        <label class="inline"><input type="checkbox" bind:checked={app.query.includeHidden} />Versteckte Spiele zeigen</label>
+        <legend>{t("Sonstiges")}</legend>
+        <label class="inline"><input type="checkbox" bind:checked={app.query.includeHidden} />{t("Versteckte Spiele zeigen")}</label>
       </fieldset>
-      <button class="btn reset" onclick={resetFilters} disabled={!activeFilters}>Filter zurücksetzen</button>
+      <button class="btn reset" onclick={resetFilters} disabled={!activeFilters}>{t("Filter zurücksetzen")}</button>
     </div>
   {/if}
 </div>

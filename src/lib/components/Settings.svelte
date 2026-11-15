@@ -6,6 +6,7 @@
   import { autoCheckUpdates, setAutoCheckUpdates, setUpdateChannel, updateChannel } from "$lib/updates";
   import { setSyncLaunchersOnStart, setTidyDesktopShortcuts, syncLaunchersOnStart, tidyDesktop, tidyDesktopShortcuts } from "$lib/launchers";
   import { boardAuraOn, setBoardAura } from "$lib/aura";
+  import { i18n, setLang, t } from "$lib/i18n.svelte";
   import Icon from "./Icon.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -40,7 +41,7 @@
         igdbClientId: igdbId.trim() || null,
         igdbClientSecret: igdbSecret.trim() || null,
       });
-      app.toast("API-Keys gespeichert");
+      app.toast(t("API-Keys gespeichert"));
     } catch (err) {
       app.error(err);
     } finally {
@@ -51,10 +52,10 @@
   async function refetchMissing() {
     const missing = app.games.filter((g) => !g.coverPath || !g.genre);
     if (!missing.length) {
-      app.toast("Alle Spiele haben schon Cover und Metadaten");
+      app.toast(t("Alle Spiele haben schon Cover und Metadaten"));
       return;
     }
-    app.toast(`Lade Cover und Metadaten für ${missing.length} Spiele …`);
+    app.toast(t("Lade Cover und Metadaten für {n} Spiele …", { n: missing.length }));
     for (const g of missing) {
       try {
         app.upsert(await api.refreshMetadata(g.id));
@@ -62,7 +63,7 @@
         app.error(e);
       }
     }
-    app.toast("Fertig");
+    app.toast(t("Fertig"));
   }
 
   let reloading = $state(false);
@@ -70,12 +71,12 @@
   async function reloadAllArt() {
     if (
       !confirm(
-        "Cover und Titelbilder aller Spiele neu laden? Offizielle Store-Bilder haben Vorrang. Selbst gewählte Bilder werden dabei ersetzt.",
+        t("Cover und Titelbilder aller Spiele neu laden? Offizielle Store-Bilder haben Vorrang. Selbst gewählte Bilder werden dabei ersetzt."),
       )
     )
       return;
     reloading = true;
-    app.toast(`Lade Bilder für ${app.games.length} Spiele neu …`);
+    app.toast(t("Lade Bilder für {n} Spiele neu …", { n: app.games.length }));
     let failed = 0;
     for (const g of app.games) {
       try {
@@ -85,7 +86,7 @@
       }
     }
     reloading = false;
-    app.toast(failed ? `Fertig, ${failed} Spiele ohne neue Bilder` : "Fertig");
+    app.toast(failed ? t("Fertig, {n} Spiele ohne neue Bilder", { n: failed }) : t("Fertig"));
   }
 
   async function checkNow() {
@@ -94,7 +95,7 @@
       check = await api.checkUpdate(channel);
     } catch (e) {
       check = null;
-      app.error(`Update-Prüfung fehlgeschlagen: ${e}`);
+      app.error(t("Update-Prüfung fehlgeschlagen: {error}", { error: String(e) }));
     } finally {
       checking = false;
     }
@@ -106,7 +107,7 @@
       // On Windows the installer closes the app and starts the new version.
       await api.installUpdate();
     } catch (e) {
-      app.error(`Update fehlgeschlagen: ${e}`);
+      app.error(t("Update fehlgeschlagen: {error}", { error: String(e) }));
       installing = false;
     }
   }
@@ -118,7 +119,7 @@
   }
 
   async function restoreAll() {
-    if (!confirm("Wirklich ALLE Verknüpfungen zurück auf den Desktop legen? Desktop-Spiele werden dabei aus der Bibliothek entfernt.")) return;
+    if (!confirm(t("Wirklich ALLE Verknüpfungen zurück auf den Desktop legen? Desktop-Spiele werden dabei aus der Bibliothek entfernt."))) return;
     restoring = true;
     // Otherwise the next start would tidy the launcher shortcuts away again.
     tidy = false;
@@ -126,8 +127,8 @@
     try {
       const r = await api.restoreAll();
       await app.load();
-      app.toast(`${r.restored} Verknüpfungen zurück auf den Desktop gelegt`);
-      if (r.failed.length) app.toast(`${r.failed.length} fehlgeschlagen: ${r.failed[0].error}`, "error");
+      app.toast(t("{n} Verknüpfungen zurück auf den Desktop gelegt", { n: r.restored }));
+      if (r.failed.length) app.toast(t("{n} fehlgeschlagen: {error}", { n: r.failed.length, error: r.failed[0].error }), "error");
     } catch (e) {
       app.error(e);
     } finally {
@@ -144,129 +145,131 @@
     tidying = true;
     const n = await tidyDesktop(true);
     tidying = false;
-    app.toast(n ? `${n} Desktop-Verknüpfungen weggeräumt. Positionen sind gemerkt.` : "Keine passenden Desktop-Verknüpfungen gefunden.");
+    app.toast(n ? t("{n} Desktop-Verknüpfungen weggeräumt. Positionen sind gemerkt.", { n }) : t("Keine passenden Desktop-Verknüpfungen gefunden."));
   }
 </script>
 
 <main class="scroll">
-  <h1>Einstellungen</h1>
+  <h1>{t("Einstellungen")}</h1>
+
+  <section class="panel">
+    <h2>{t("Sprache")}</h2>
+    <div class="channels" role="radiogroup" aria-label={t("Sprache")}>
+      <button class="chip" class:active={i18n.lang === "de"} role="radio" aria-checked={i18n.lang === "de"} onclick={() => setLang("de")}>Deutsch</button>
+      <button class="chip" class:active={i18n.lang === "en"} role="radio" aria-checked={i18n.lang === "en"} onclick={() => setLang("en")}>English</button>
+    </div>
+  </section>
 
   <form class="panel" onsubmit={save}>
-    <h2>Cover und Metadaten</h2>
+    <h2>{t("Cover und Metadaten")}</h2>
     <p class="muted">
-      Ohne Key gibt es die offiziellen Store-Bilder: von Steam, von Epic (aus dem installierten Epic Launcher) und
-      für Spiele anderer Launcher, die es auch auf Steam gibt. Für den Rest liefert IGDB die offizielle Box-Art samt
-      Genre, Entwickler und Erscheinungsjahr, SteamGridDB springt ein, wo sonst nichts gefunden wird. Die Keys werden
-      in der Windows-Anmeldeinformationsverwaltung gespeichert.
+      {t("Ohne Key gibt es die offiziellen Store-Bilder: von Steam, von Epic (aus dem installierten Epic Launcher) und für Spiele anderer Launcher, die es auch auf Steam gibt. Für den Rest liefert IGDB die offizielle Box-Art samt Genre, Entwickler und Erscheinungsjahr, SteamGridDB springt ein, wo sonst nichts gefunden wird. Die Keys werden in der Windows-Anmeldeinformationsverwaltung gespeichert.")}
     </p>
     <label>
-      <span>SteamGridDB API-Key</span>
-      <input class="input" type="password" autocomplete="off" bind:value={sgdb} placeholder="Key von steamgriddb.com/profile/preferences/api" />
+      <span>{t("SteamGridDB API-Key")}</span>
+      <input class="input" type="password" autocomplete="off" bind:value={sgdb} placeholder={t("Key von {site}", { site: "steamgriddb.com/profile/preferences/api" })} />
     </label>
     <div class="two">
       <label>
-        <span>IGDB Client-ID (Twitch)</span>
-        <input class="input" autocomplete="off" bind:value={igdbId} placeholder="aus dev.twitch.tv/console" />
+        <span>{t("IGDB Client-ID (Twitch)")}</span>
+        <input class="input" autocomplete="off" bind:value={igdbId} placeholder={t("aus {site}", { site: "dev.twitch.tv/console" })} />
       </label>
       <label>
-        <span>IGDB Client-Secret</span>
+        <span>{t("IGDB Client-Secret")}</span>
         <input class="input" type="password" autocomplete="off" bind:value={igdbSecret} />
       </label>
     </div>
     <div class="row">
-      <button class="btn primary" type="submit" disabled={saving}>{saving ? "Speichert …" : "Speichern"}</button>
-      <button class="btn" type="button" onclick={refetchMissing}><Icon name="refresh" size={16} />Fehlende Cover und Infos laden</button>
-      <button class="btn" type="button" onclick={reloadAllArt} disabled={reloading}><Icon name="image" size={16} />{reloading ? "Lädt …" : "Alle Cover neu laden"}</button>
+      <button class="btn primary" type="submit" disabled={saving}>{saving ? t("Speichert …") : t("Speichern")}</button>
+      <button class="btn" type="button" onclick={refetchMissing}><Icon name="refresh" size={16} />{t("Fehlende Cover und Infos laden")}</button>
+      <button class="btn" type="button" onclick={reloadAllArt} disabled={reloading}><Icon name="image" size={16} />{reloading ? t("Lädt …") : t("Alle Cover neu laden")}</button>
     </div>
   </form>
 
   <section class="panel">
-    <h2>Updates</h2>
+    <h2>{t("Updates")}</h2>
     <p class="muted">
-      „Stabil“ bekommt nur fertige Versionen. „Dev“ bekommt zusätzlich jeden Entwicklungsstand, kann aber Fehler haben.
-      Updates sind signiert, die App installiert nur Pakete von uns.
+      {t("„Stabil“ bekommt nur fertige Versionen. „Dev“ bekommt zusätzlich jeden Entwicklungsstand, kann aber Fehler haben. Updates sind signiert, die App installiert nur Pakete von uns.")}
     </p>
-    <div class="channels" role="radiogroup" aria-label="Update-Kanal">
-      <button class="chip" class:active={channel === "stable"} role="radio" aria-checked={channel === "stable"} onclick={() => changeChannel("stable")}>Stabil</button>
+    <div class="channels" role="radiogroup" aria-label={t("Update-Kanal")}>
+      <button class="chip" class:active={channel === "stable"} role="radio" aria-checked={channel === "stable"} onclick={() => changeChannel("stable")}>{t("Stabil")}</button>
       <button class="chip" class:active={channel === "dev"} role="radio" aria-checked={channel === "dev"} onclick={() => changeChannel("dev")}>Dev</button>
     </div>
     <label class="check">
       <input type="checkbox" bind:checked={autoCheck} onchange={() => setAutoCheckUpdates(autoCheck)} />
-      <span>Beim Start nach Updates suchen</span>
+      <span>{t("Beim Start nach Updates suchen")}</span>
     </label>
     <div class="row">
-      <button class="btn" onclick={checkNow} disabled={checking || installing}><Icon name="refresh" size={16} />{checking ? "Sucht …" : "Jetzt nach Updates suchen"}</button>
+      <button class="btn" onclick={checkNow} disabled={checking || installing}><Icon name="refresh" size={16} />{checking ? t("Sucht …") : t("Jetzt nach Updates suchen")}</button>
       {#if check?.update}
-        <button class="btn primary" onclick={install} disabled={installing}>{installing ? "Wird installiert …" : `Version ${check.update.version} installieren`}</button>
+        <button class="btn primary" onclick={install} disabled={installing}>{installing ? t("Wird installiert …") : t("Version {version} installieren", { version: check.update.version })}</button>
       {/if}
     </div>
     {#if check && !check.enabled}
-      <p class="muted">Diese Version wurde ohne Update-Schlüssel gebaut (z. B. lokal). Updates sind hier ausgeschaltet.</p>
+      <p class="muted">{t("Diese Version wurde ohne Update-Schlüssel gebaut (z. B. lokal). Updates sind hier ausgeschaltet.")}</p>
     {:else if check && !check.update}
-      <p class="muted">Du bist auf dem neuesten Stand{settings ? ` (${settings.version})` : ""}.</p>
+      <p class="muted">{t("Du bist auf dem neuesten Stand")}{settings ? ` (${settings.version})` : ""}.</p>
     {:else if check?.update?.notes}
       <p class="notes">{check.update.notes}</p>
     {/if}
   </section>
 
   <section class="panel">
-    <h2>Boards</h2>
+    <h2>{t("Boards")}</h2>
     <label class="check">
       <input type="checkbox" checked={boardAuraOn()} onchange={(e) => setBoardAura(e.currentTarget.checked)} />
-      <span>Felder in den Farben ihrer Cover einfärben</span>
+      <span>{t("Felder in den Farben ihrer Cover einfärben")}</span>
     </label>
   </section>
 
   <section class="panel">
-    <h2>Launcher</h2>
+    <h2>{t("Launcher")}</h2>
     <p class="muted">
-      Liest installierte Spiele aus Steam, Epic, Ubisoft Connect, EA App, Battle.net und Riot. Deinstallierte Spiele
-      bleiben mit Spielzeit in der Bibliothek und werden als „Nicht installiert“ markiert.
+      {t("Liest installierte Spiele aus Steam, Epic, Ubisoft Connect, EA App, Battle.net und Riot. Deinstallierte Spiele bleiben mit Spielzeit in der Bibliothek und werden als „Nicht installiert“ markiert.")}
     </p>
     <label class="check">
       <input type="checkbox" bind:checked={syncLaunchers} onchange={() => setSyncLaunchersOnStart(syncLaunchers)} />
-      <span>Beim Start nach neuen und deinstallierten Spielen suchen</span>
+      <span>{t("Beim Start nach neuen und deinstallierten Spielen suchen")}</span>
     </label>
     <label class="check">
       <input type="checkbox" bind:checked={tidy} onchange={changeTidy} disabled={tidying} />
-      <span>Desktop-Verknüpfungen importierter Spiele entfernen</span>
+      <span>{t("Desktop-Verknüpfungen importierter Spiele entfernen")}</span>
     </label>
     <p class="muted small">
-      Verknüpfungen von Spielen aus den Launchern wandern wie beim Desktop-Import in den App-Ordner, inklusive Position.
-      „Alle zurück auf den Desktop“ legt sie wieder an ihren alten Platz.
+      {t("Verknüpfungen von Spielen aus den Launchern wandern wie beim Desktop-Import in den App-Ordner, inklusive Position. „Alle zurück auf den Desktop“ legt sie wieder an ihren alten Platz.")}
     </p>
     <div class="row">
-      <button class="btn" onclick={() => (app.screen = { kind: "import", from: "launchers" })}><Icon name="layers" size={16} />Spiele aus Launchern einlesen</button>
+      <button class="btn" onclick={() => (app.screen = { kind: "import", from: "launchers" })}><Icon name="layers" size={16} />{t("Spiele aus Launchern einlesen")}</button>
     </div>
   </section>
 
   <section class="panel">
-    <h2>Speicherort</h2>
+    <h2>{t("Speicherort")}</h2>
     {#if settings}
       <dl>
-        <dt>Datenordner</dt>
+        <dt>{t("Datenordner")}</dt>
         <dd>{settings.dataDir}</dd>
-        <dt>Verschobene Verknüpfungen</dt>
+        <dt>{t("Verschobene Verknüpfungen")}</dt>
         <dd>{settings.shortcutsDir}</dd>
-        <dt>Desktop</dt>
+        <dt>{t("Desktop")}</dt>
         <dd>{settings.desktopDirs.join(", ")}</dd>
       </dl>
     {/if}
     <div class="row">
-      <button class="btn" onclick={() => api.openDataFolder().catch((e) => app.error(e))}><Icon name="folder" size={16} />Ordner öffnen</button>
+      <button class="btn" onclick={() => api.openDataFolder().catch((e) => app.error(e))}><Icon name="folder" size={16} />{t("Ordner öffnen")}</button>
     </div>
   </section>
 
   <section class="panel">
-    <h2>Alles rückgängig machen</h2>
-    <p class="muted">Legt alle importierten Verknüpfungen zurück auf den Desktop und entfernt die Spiele aus der Bibliothek. Spiele aus den Launchern bleiben in der Bibliothek, nur ihre Verknüpfungen kommen zurück.</p>
+    <h2>{t("Alles rückgängig machen")}</h2>
+    <p class="muted">{t("Legt alle importierten Verknüpfungen zurück auf den Desktop und entfernt die Spiele aus der Bibliothek. Spiele aus den Launchern bleiben in der Bibliothek, nur ihre Verknüpfungen kommen zurück.")}</p>
     <div class="row">
-      <button class="btn danger" onclick={restoreAll} disabled={restoring}><Icon name="undo" size={16} />Alle zurück auf den Desktop</button>
+      <button class="btn danger" onclick={restoreAll} disabled={restoring}><Icon name="undo" size={16} />{t("Alle zurück auf den Desktop")}</button>
     </div>
   </section>
 
   {#if settings}
-    <p class="about muted">PRVDS Game Launcher · Version {settings.version}</p>
+    <p class="about muted">PRVDS Game Launcher · {t("Version {version}", { version: settings.version })}</p>
   {/if}
 </main>
 

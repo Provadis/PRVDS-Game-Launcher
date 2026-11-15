@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { app } from "$lib/state.svelte";
   import { formatPlaytime, relativeDay } from "$lib/format";
   import { platformLabel, type Game } from "$lib/types";
@@ -10,13 +11,13 @@
 <table>
   <thead>
     <tr>
-      <th class="c-name" colspan="2">Name</th>
-      <th>Plattform</th>
-      <th>Genre</th>
-      <th class="num">Spielzeit</th>
-      <th>Zuletzt gespielt</th>
-      <th class="num">Starts</th>
-      <th><span class="sr-only">Aktion</span></th>
+      <th class="c-name" colspan="2">{t("Name")}</th>
+      <th>{t("Plattform")}</th>
+      <th>{t("Genre")}</th>
+      <th class="num">{t("Spielzeit")}</th>
+      <th>{t("Zuletzt gespielt")}</th>
+      <th class="num">{t("Starts")}</th>
+      <th><span class="sr-only">{t("Aktion")}</span></th>
     </tr>
   </thead>
   <tbody>
@@ -25,17 +26,17 @@
         <td class="thumb"><Cover game={g} showBadge={false} radius={6} /></td>
         <td class="c-name">
           <button class="link" onclick={(e) => { e.stopPropagation(); app.openGame(g.id); }}>
-            {#if g.favorite}<span class="fav" aria-label="Favorit">★</span>{/if}{g.name}
+            {#if g.favorite}<span class="fav" aria-label={t("Favorit")}>★</span>{/if}{g.name}
           </button>
-          {#if !g.installed}<span class="tags">Nicht installiert</span>{:else if g.tags.length}<span class="tags">{g.tags.join(" · ")}</span>{/if}
+          {#if !g.installed}<span class="tags">{t("Nicht installiert")}</span>{:else if g.tags.length}<span class="tags">{g.tags.join(" · ")}</span>{/if}
         </td>
         <td>{platformLabel(g.platform)}</td>
         <td class="muted">{g.genre ?? "–"}</td>
         <td class="num">{formatPlaytime(g.playtimeSecs)}</td>
-        <td class:running={app.running.includes(g.id)}>{app.running.includes(g.id) ? "Läuft gerade" : relativeDay(g.lastPlayed)}</td>
+        <td class:running={app.running.includes(g.id)}>{app.running.includes(g.id) ? t("Läuft gerade") : relativeDay(g.lastPlayed)}</td>
         <td class="num">{g.playCount}</td>
         <td class="act">
-          <button class="btn primary" onclick={(e) => { e.stopPropagation(); app.launch(g.id); }}>Spielen</button>
+          <button class="btn primary" onclick={(e) => { e.stopPropagation(); app.launch(g.id); }}>{t("Spielen")}</button>
         </td>
       </tr>
     {/each}

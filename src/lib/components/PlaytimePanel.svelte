@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { locale, t } from "$lib/i18n.svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
   import { dailyPlaytime, formatDuration, formatPlaytime, formatSessionRange } from "$lib/format";
@@ -17,20 +18,20 @@
   let total30 = $derived(days.reduce((a, d) => a + d.secs, 0));
   let max = $derived(Math.max(3600, ...days.map((d) => d.secs)));
   let avg = $derived(sessions.length ? sessions.reduce((a, s) => a + s.durationSecs, 0) / sessions.length : 0);
-  const fmtDay = (d: Date) => d.toLocaleDateString("de-DE", { day: "numeric", month: "short" });
+  const fmtDay = (d: Date) => d.toLocaleDateString(locale(), { day: "numeric", month: "short" });
   let labels = $derived([0, 7, 14, 21, 29].map((i) => fmtDay(days[i].day)));
 </script>
 
-<section class="panel" aria-label="Spielzeit">
+<section class="panel" aria-label={t("Spielzeit")}>
   <div class="head">
-    <h2>Spielzeit</h2>
-    <span class="muted">letzte 30 Tage · {formatPlaytime(total30)}</span>
+    <h2>{t("Spielzeit")}</h2>
+    <span class="muted">{t("letzte 30 Tage")} · {formatPlaytime(total30)}</span>
     <span class="spacer"></span>
-    <span class="muted">{sessions.length} Sitzungen · Ø {sessions.length ? formatDuration(avg) : "–"}</span>
+    <span class="muted">{t("{n} Sitzungen", { n: sessions.length })} · Ø {sessions.length ? formatDuration(avg) : "–"}</span>
   </div>
-  <div class="chart" role="img" aria-label="Spielzeit pro Tag in den letzten 30 Tagen, insgesamt {formatPlaytime(total30)}">
+  <div class="chart" role="img" aria-label={t("Spielzeit pro Tag in den letzten 30 Tagen, insgesamt {total}", { total: formatPlaytime(total30) })}>
     {#each days as d (d.day.getTime())}
-      <div class="col" title="{fmtDay(d.day)}: {d.secs ? formatDuration(d.secs) : 'nicht gespielt'}">
+      <div class="col" title="{fmtDay(d.day)}: {d.secs ? formatDuration(d.secs) : t('nicht gespielt')}">
         <div class="bar" class:empty={!d.secs} style="height: {d.secs ? Math.max(4, (d.secs / max) * 100) : 2}%"></div>
       </div>
     {/each}
@@ -46,7 +47,7 @@
     </ul>
   {:else}
     <p class="muted">
-      Noch keine gemessenen Sitzungen. Starte das Spiel über den Launcher, dann wird die Spielzeit automatisch erfasst.
+      {t("Noch keine gemessenen Sitzungen. Starte das Spiel über den Launcher, dann wird die Spielzeit automatisch erfasst.")}
     </p>
   {/if}
 </section>

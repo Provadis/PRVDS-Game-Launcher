@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
   import type { Game } from "$lib/types";
@@ -32,14 +33,14 @@
 </script>
 
 <div class="tags">
-  {#each game.tags as t (t)}
-    <span class="tag">{t}<button onclick={() => remove(t)} aria-label="Tag {t} entfernen"><Icon name="close" size={12} stroke={2.5} /></button></span>
+  {#each game.tags as tag (tag)}
+    <span class="tag">{tag}<button onclick={() => remove(tag)} aria-label={t("Tag {tag} entfernen", { tag })}><Icon name="close" size={12} stroke={2.5} /></button></span>
   {/each}
   <form onsubmit={add}>
-    <label class="sr-only" for="new-tag">Neuer Tag</label>
+    <label class="sr-only" for="new-tag">{t("Neuer Tag")}</label>
     <input id="new-tag" list={listId} placeholder="+ Tag" bind:value={draft} />
     <datalist id={listId}>
-      {#each app.tags.filter((t) => !game.tags.includes(t)) as t (t)}<option value={t}></option>{/each}
+      {#each app.tags.filter((x) => !game.tags.includes(x)) as tag (tag)}<option value={tag}></option>{/each}
     </datalist>
   </form>
 </div>

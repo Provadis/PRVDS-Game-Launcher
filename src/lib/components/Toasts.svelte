@@ -1,21 +1,22 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { app } from "$lib/state.svelte";
   import Icon from "./Icon.svelte";
 </script>
 
 <div class="toasts" role="status" aria-live="polite">
-  {#each app.toasts as t (t.id)}
-    <div class="toast" class:error={t.kind === "error"}>
-      <span>{t.text}</span>
-      {#if t.action}
+  {#each app.toasts as toast (toast.id)}
+    <div class="toast" class:error={toast.kind === "error"}>
+      <span>{toast.text}</span>
+      {#if toast.action}
         <button
           class="btn"
           onclick={() => {
-            t.action?.run();
-            app.dismiss(t.id);
-          }}>{t.action.label}</button>
+            toast.action?.run();
+            app.dismiss(toast.id);
+          }}>{toast.action.label}</button>
       {/if}
-      <button class="close" onclick={() => app.dismiss(t.id)} aria-label="Schließen"><Icon name="close" size={16} /></button>
+      <button class="close" onclick={() => app.dismiss(toast.id)} aria-label={t("Schließen")}><Icon name="close" size={16} /></button>
     </div>
   {/each}
 </div>

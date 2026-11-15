@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { onMount } from "svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
@@ -49,7 +50,7 @@
     try {
       const added = await api.importLauncherGames(games);
       for (const g of added) app.upsert(g);
-      app.toast(`${added.length} Spiele übernommen. Cover werden geladen …`);
+      app.toast(t("{n} Spiele übernommen. Cover werden geladen …", { n: added.length }));
       if (tidyDesktopShortcuts()) await tidyDesktop();
       app.selectSource({ kind: "all" });
     } catch (e) {
@@ -64,13 +65,13 @@
 
 <div class="wizard">
   <header>
-    <button class="btn icon" onclick={() => (app.screen = { kind: "library" })} aria-label="Schließen">
+    <button class="btn icon" onclick={() => (app.screen = { kind: "library" })} aria-label={t("Schließen")}>
       <Icon name="close" size={20} />
     </button>
     <div class="head">
-      <h1>Spiele aus Launchern einlesen</h1>
+      <h1>{t("Spiele aus Launchern einlesen")}</h1>
       <span class="muted">
-        {#if scanning}Launcher werden durchsucht …{:else}{candidates.length} installierte Spiele gefunden, {fresh} davon neu{/if}
+        {#if scanning}{t("Launcher werden durchsucht …")}{:else}{t("{n} installierte Spiele gefunden, {fresh} davon neu", { n: candidates.length, fresh })}{/if}
       </span>
       <ImportTabs current="launchers" />
     </div>
@@ -79,12 +80,11 @@
   <div class="body scroll">
     {#if !scanning && candidates.length === 0}
       <div class="empty">
-        <h2>Keine installierten Spiele gefunden</h2>
+        <h2>{t("Keine installierten Spiele gefunden")}</h2>
         <p class="muted">
-          Gelesen werden Steam, Epic, Ubisoft Connect, EA App, Battle.net und Riot. Ist ein Launcher installiert, aber
-          leer, findet sich hier nichts.
+          {t("Gelesen werden Steam, Epic, Ubisoft Connect, EA App, Battle.net und Riot. Ist ein Launcher installiert, aber leer, findet sich hier nichts.")}
         </p>
-        <button class="btn" onclick={scan}><Icon name="refresh" />Erneut suchen</button>
+        <button class="btn" onclick={scan}><Icon name="refresh" />{t("Erneut suchen")}</button>
       </div>
     {/if}
 
@@ -92,10 +92,10 @@
       <section>
         <div class="section-head">
           <h2>{platformLabel(group.platform)}</h2>
-          <span class="muted">{group.items.length} installiert</span>
+          <span class="muted">{t("{n} installiert", { n: group.items.length })}</span>
           <span class="spacer"></span>
-          <button class="btn" onclick={() => setGroup(group.platform, true)}>Alle auswählen</button>
-          <button class="btn" onclick={() => setGroup(group.platform, false)}>Keine</button>
+          <button class="btn" onclick={() => setGroup(group.platform, true)}>{t("Alle auswählen")}</button>
+          <button class="btn" onclick={() => setGroup(group.platform, false)}>{t("Keine")}</button>
         </div>
         <div class="items">
           {#each group.items as c (keyOf(c))}
@@ -108,13 +108,13 @@
 
   <footer>
     <div class="summary">
-      <strong>{count} von {candidates.length} ausgewählt</strong>
-      <span class="muted">Gestartet wird über den jeweiligen Launcher.{tidyDesktopShortcuts() ? " Passende Desktop-Verknüpfungen werden weggeräumt." : " Dein Desktop bleibt unverändert."}</span>
+      <strong>{t("{n} von {total} ausgewählt", { n: count, total: candidates.length })}</strong>
+      <span class="muted">{t("Gestartet wird über den jeweiligen Launcher.")} {tidyDesktopShortcuts() ? t("Passende Desktop-Verknüpfungen werden weggeräumt.") : t("Dein Desktop bleibt unverändert.")}</span>
     </div>
     <span class="spacer"></span>
-    <button class="btn big" onclick={() => (app.screen = { kind: "library" })}>Abbrechen</button>
+    <button class="btn big" onclick={() => (app.screen = { kind: "library" })}>{t("Abbrechen")}</button>
     <button class="btn big primary" disabled={!count || importing} onclick={doImport}>
-      {importing ? "Wird übernommen …" : `${count} übernehmen`}
+      {importing ? t("Wird übernommen …") : t("{n} übernehmen", { n: count })}
       <Icon name="arrowRight" />
     </button>
   </footer>
@@ -128,7 +128,7 @@
     <span class="text">
       <span class="title" title={c.game.name}>{c.game.name}</span>
       <span class="file" title={c.game.installDir ?? ""}>{c.game.installDir ?? c.game.platformId}</span>
-      {#if c.existingId !== null}<span class="plat">Schon in der Bibliothek</span>{/if}
+      {#if c.existingId !== null}<span class="plat">{t("Schon in der Bibliothek")}</span>{/if}
     </span>
     <input type="checkbox" bind:checked={selected[k]} />
   </label>

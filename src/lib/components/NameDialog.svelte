@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { untrack } from "svelte";
   let {
     title,
     label,
     initial = "",
-    confirmLabel = "Speichern",
+    confirmLabel = t("Speichern"),
     extra,
     onsubmit,
     onclose,
@@ -39,7 +40,7 @@
     </label>
     {@render extra?.()}
     <div class="row">
-      <button class="btn" type="button" onclick={onclose}>Abbrechen</button>
+      <button class="btn" type="button" onclick={onclose}>{t("Abbrechen")}</button>
       <button class="btn primary" type="submit" disabled={!name.trim()}>{confirmLabel}</button>
     </div>
   </form>

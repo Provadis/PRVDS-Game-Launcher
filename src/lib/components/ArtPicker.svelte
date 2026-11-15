@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { onMount } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { api } from "$lib/api";
@@ -35,7 +36,7 @@
   }
 
   async function pickFile() {
-    const path = await open({ multiple: false, filters: [{ name: "Bilder", extensions: ["png", "jpg", "jpeg", "webp"] }] });
+    const path = await open({ multiple: false, filters: [{ name: t("Bilder"), extensions: ["png", "jpg", "jpeg", "webp"] }] });
     if (typeof path !== "string") return;
     try {
       app.upsert(await api.setArtFromFile(game.id, kind, path));
@@ -51,28 +52,27 @@
 <div class="backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()}>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="art-title">
     <header>
-      <h2 id="art-title">{kind === "cover" ? "Cover" : "Hintergrundbild"} für {game.name}</h2>
-      <button class="btn" onclick={pickFile}><Icon name="folder" size={16} />Eigenes Bild</button>
-      <button class="btn icon" onclick={onclose} aria-label="Schließen"><Icon name="close" /></button>
+      <h2 id="art-title">{t(kind === "cover" ? "Cover für {name}" : "Hintergrundbild für {name}", { name: game.name })}</h2>
+      <button class="btn" onclick={pickFile}><Icon name="folder" size={16} />{t("Eigenes Bild")}</button>
+      <button class="btn icon" onclick={onclose} aria-label={t("Schließen")}><Icon name="close" /></button>
     </header>
     <div class="body scroll">
       {#if loading}
-        <p class="muted">Suche nach Bildern …</p>
+        <p class="muted">{t("Suche nach Bildern …")}</p>
       {:else if options.length === 0}
         <div class="empty">
-          <p>Keine Bilder gefunden.</p>
+          <p>{t("Keine Bilder gefunden.")}</p>
           <p class="muted">
-            Für mehr Treffer trag in den Einstellungen einen SteamGridDB-Key ein, oder wähle ein eigenes Bild. Du kannst
-            ein Bild auch direkt auf das Cover ziehen.
+            {t("Für mehr Treffer trag in den Einstellungen einen SteamGridDB-Key ein, oder wähle ein eigenes Bild. Du kannst ein Bild auch direkt auf das Cover ziehen.")}
           </p>
-          <button class="btn" onclick={() => { onclose(); app.screen = { kind: "settings" }; }}>Zu den Einstellungen</button>
+          <button class="btn" onclick={() => { onclose(); app.screen = { kind: "settings" }; }}>{t("Zu den Einstellungen")}</button>
         </div>
       {:else}
         <div class="grid" class:hero={kind === "hero"}>
           {#each options as o (o.url)}
-            <button class="opt" onclick={() => pick(o)} disabled={!!applying} aria-label="Bild von {o.source} wählen">
+            <button class="opt" onclick={() => pick(o)} disabled={!!applying} aria-label={t("Bild von {source} wählen", { source: o.source })}>
               <img src={o.thumb} alt="" loading="lazy" />
-              <span class="src">{applying === o.url ? "Wird geladen …" : o.source}</span>
+              <span class="src">{applying === o.url ? t("Wird geladen …") : o.source}</span>
             </button>
           {/each}
         </div>

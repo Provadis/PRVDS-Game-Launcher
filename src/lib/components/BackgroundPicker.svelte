@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from "$lib/i18n.svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
@@ -31,7 +32,7 @@
   async function pickFile() {
     const path = await open({
       multiple: false,
-      filters: [{ name: "Bilder und Videos", extensions: ["jpg", "jpeg", "png", "webp", "gif", "mp4", "webm"] }],
+      filters: [{ name: t("Bilder und Videos"), extensions: ["jpg", "jpeg", "png", "webp", "gif", "mp4", "webm"] }],
     });
     if (typeof path !== "string") return;
     busy = true;
@@ -47,43 +48,42 @@
   }
 </script>
 
-<div class="picker" role="dialog" aria-label="Hintergrund">
+<div class="picker" role="dialog" aria-label={t("Hintergrund")}>
   <header>
-    <h3>Hintergrund</h3>
-    <button class="icon-btn" onclick={onclose} aria-label="Schließen"><Icon name="close" size={16} /></button>
+    <h3>{t("Hintergrund")}</h3>
+    <button class="icon-btn" onclick={onclose} aria-label={t("Schließen")}><Icon name="close" size={16} /></button>
   </header>
   <div class="tiles">
     <button class="tile none" class:on={!value} onclick={() => onchange(null)}>
-      <span class="thumb"></span><span>Keiner</span>
+      <span class="thumb"></span><span>{t("Keiner")}</span>
     </button>
     {#each presets as p (p.id)}
       <button class="tile" class:on={value?.kind === "preset" && value.value === p.id} onclick={() => set({ kind: "preset", value: p.id })}>
         <span class="thumb"><BoardBackdrop bg={{ kind: "preset", value: p.id, align: "center", dim: 0 }} /></span>
-        <span>{p.label}</span>
+        <span>{t(p.label)}</span>
       </button>
     {/each}
   </div>
   <button class="btn own" onclick={pickFile} disabled={busy}>
-    <Icon name="image" size={16} />{busy ? "Wird kopiert …" : "Eigenes Bild oder Video …"}
+    <Icon name="image" size={16} />{busy ? t("Wird kopiert …") : t("Eigenes Bild oder Video …")}
   </button>
   {#if value && value.kind !== "preset"}
-    <p class="muted small">{value.kind === "video" ? "Video" : "Bild"} gewählt. Welcher Teil soll sichtbar bleiben?</p>
-    <div class="seg" role="radiogroup" aria-label="Ausrichtung">
+    <p class="muted small">{value.kind === "video" ? t("Video gewählt. Welcher Teil soll sichtbar bleiben?") : t("Bild gewählt. Welcher Teil soll sichtbar bleiben?")}</p>
+    <div class="seg" role="radiogroup" aria-label={t("Ausrichtung")}>
       {#each [["left", "Links"], ["center", "Mitte"], ["right", "Rechts"]] as [a, label] (a)}
-        <button class="chip" class:active={value.align === a} role="radio" aria-checked={value.align === a} onclick={() => set({ align: a as BoardBackground["align"] })}>{label}</button>
+        <button class="chip" class:active={value.align === a} role="radio" aria-checked={value.align === a} onclick={() => set({ align: a as BoardBackground["align"] })}>{t(label)}</button>
       {/each}
     </div>
   {/if}
   {#if value}
     <label class="dim">
-      <span>Abdunkeln</span>
+      <span>{t("Abdunkeln")}</span>
       <input type="range" min="0" max="85" step="5" value={value.dim} oninput={(e) => set({ dim: Number(e.currentTarget.value) })} />
       <span class="muted">{value.dim} %</span>
     </label>
   {/if}
   <p class="muted small">
-    Die eingebauten Hintergründe sind für diese App gemacht. Eigene Dateien werden in den App-Ordner kopiert; freie
-    Wallpaper gibt es z. B. bei Unsplash oder Pexels (dort auch Videos).
+    {t("Die eingebauten Hintergründe sind für diese App gemacht. Eigene Dateien werden in den App-Ordner kopiert; freie Wallpaper gibt es z. B. bei Unsplash oder Pexels (dort auch Videos).")}
   </p>
 </div>
 
