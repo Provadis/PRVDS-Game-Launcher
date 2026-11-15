@@ -19,8 +19,51 @@
   // Sizes are rounded up to whole grid steps, so field edges line up with
   // each other; the covers sit centred in the extra space.
   const toStep = (px: number) => Math.ceil(px / STEP) * STEP;
-  const fieldW = (f: BoardField) => toStep(f.cols * CW + (f.cols - 1) * GAP + 2 * PAD);
-  const fieldH = (f: BoardField) => toStep(HEAD + f.rows * CH + (f.rows - 1) * GAP + 2 * PAD);
+  const colsW = (cols: number) => toStep(cols * CW + (cols - 1) * GAP + 2 * PAD);
+  /** Room for the scrollbar of a field that scrolls sideways. */
+  const SCROLLBAR = 12;
+
+  // A field is at most as wide as the window; anything wider scrolls
+  // sideways inside the field.
+  let mainW = $state(0);
+  const MAIN_PAD = 48;
+  function maxW(x: number) {
+    const avail = Math.floor((mainW - 2 * MAIN_PAD - x * STEP) / STEP) * STEP;
+    return Math.max(colsW(1), avail);
+  }
+  /** Shown width of a field at position `x`. */
+  const fieldW = (f: BoardField) => Math.min(colsW(f.cols), mainW ? maxW(f.x) : Infinity);
+  /** Whether the field's games are wider than the field. */
+  const scrolls = (f: BoardField) => colsW(gridCols(f)) > fieldW(f);
+  const fieldH = (f: BoardField) =>
+    toStep(HEAD + f.rows * CH + (f.rows - 1) * GAP + 2 * PAD + (scrolls(f) ? SCROLLBAR : 0));
+
+  // ---- collection fields ------------------------------------------------------
+
+  function collectionGames(f: BoardField): Game[] {
+    const cid = f.collectionId;
+    if (cid == null) return [];
+    return app.games
+      .filter((g) => !g.hidden && g.collections.includes(cid))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  /** Columns of the slot grid: a collection field grows sideways to fit all its games. */
+  function gridCols(f: BoardField) {
+    if (f.collectionId == null) return f.cols;
+    return Math.max(f.cols, Math.ceil(collectionGames(f).length / f.rows));
+  }
+  /** Every game in a field with its place. */
+  function placed(f: BoardField): { col: number; row: number; game: Game }[] {
+    if (f.collectionId != null) {
+      const cols = gridCols(f);
+      return collectionGames(f).map((game, i) => ({ col: i % cols, row: Math.floor(i / cols), game }));
+    }
+    return f.slots.flatMap((s) => {
+      const game = app.byId.get(s.gameId);
+      return game ? [{ col: s.col, row: s.row, game }] : [];
+    });
+  }
+  const collectionName = (f: BoardField) => app.collections.find((c) => c.id === f.collectionId)?.name;
 
   let board = $derived(app.boards.find((b) => b.id === id) ?? null);
   let draft = $state<Board | null>(null);
@@ -37,9 +80,7 @@
   $effect(() => {
     if (!auraOn || !shown) return;
     for (const f of shown.fields)
-      for (const s of f.slots) {
-        const g = app.byId.get(s.gameId);
-        if (!g) continue;
+      for (const { game: g } of placed(f)) {
         const k = auraKey(g);
         if (untrack(() => auras[k])) continue;
         auraOf(g).then((rgb) => (auras[k] = rgb));
@@ -50,17 +91,18 @@
   }
   function washOf(f: BoardField) {
     if (!auraOn) return null;
-    const colours = f.slots.flatMap((s) => {
-      const g = app.byId.get(s.gameId);
-      const rgb = g && auraFor(g);
-      return rgb ? [{ col: s.col, rgb }] : [];
+    // Only what is in view at first counts, so a long collection does not
+    // turn into a grey average.
+    const colours = placed(f).flatMap(({ col, game }) => {
+      const rgb = col < f.cols ? auraFor(game) : undefined;
+      return rgb ? [{ col, rgb }] : [];
     });
     return fieldWash(f.cols, colours);
   }
   /** The field being moved or resized, and whether it sits on another one. */
   let dragging = $state<{ id: string; blocked: boolean } | null>(null);
 
-  let filled = $derived(shown ? shown.fields.reduce((n, f) => n + f.slots.length, 0) : 0);
+  let filled = $derived(shown ? shown.fields.reduce((n, f) => n + placed(f).length, 0) : 0);
   let canvasW = $derived(
     shown ? Math.max(0, ...shown.fields.map((f) => f.x * STEP + fieldW(f))) + (editing ? 240 : 0) : 0,
   );
@@ -98,7 +140,7 @@
   // ---- fields --------------------------------------------------------------
 
   function rect(f: BoardField, x = f.x, y = f.y, cols = f.cols, rows = f.rows) {
-    const g = { ...f, cols, rows };
+    const g = { ...f, x, y, cols, rows };
     return { l: x * STEP, t: y * STEP, r: x * STEP + fieldW(g), b: y * STEP + fieldH(g) };
   }
 
@@ -112,18 +154,35 @@
     });
   }
 
-  function addField() {
+  function addField(collectionId: number | null = null) {
     if (!draft) return;
     const ids = new Set(draft.fields.map((f) => f.id));
     let n = draft.fields.length;
     while (ids.has(`f${n}`)) n++;
     const bottom = Math.max(0, ...draft.fields.map((f) => Math.ceil(rect(f).b / STEP) + 1));
-    draft.fields.push({ id: `f${n}`, title: "Neues Feld", x: 0, y: bottom, cols: 4, rows: 1, slots: [] });
+    const collection = app.collections.find((c) => c.id === collectionId);
+    const field: BoardField = { id: `f${n}`, title: collection?.name ?? "Neues Feld", x: 0, y: bottom, cols: 4, rows: 1, slots: [], collectionId: collection?.id ?? null };
+    if (collection) field.cols = Math.min(Math.max(1, collectionGames(field).length), 8);
+    draft.fields.push(field);
+  }
+
+  /** Turns vertical wheel turns into sideways scrolling over a field that
+   * scrolls, until its end is reached; then the page scrolls on. */
+  function sideScroll(el: HTMLElement) {
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if ((e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return { destroy: () => el.removeEventListener("wheel", onWheel) };
   }
 
   function removeField(f: BoardField) {
     if (!draft) return;
-    if (f.slots.length && !confirm(`Feld „${f.title || "ohne Titel"}“ mit ${f.slots.length} Spielen entfernen?`)) return;
+    if (f.collectionId == null && f.slots.length && !confirm(`Feld „${f.title || "ohne Titel"}“ mit ${f.slots.length} Spielen entfernen?`)) return;
     draft.fields = draft.fields.filter((x) => x.id !== f.id);
   }
 
@@ -175,6 +234,7 @@
   const GAME_MIME = "application/x-game-id";
 
   function gameAt(f: BoardField, col: number, row: number): Game | null {
+    if (f.collectionId != null) return collectionGames(f)[row * gridCols(f) + col] ?? null;
     const s = f.slots.find((x) => x.col === col && x.row === row);
     return s ? (app.byId.get(s.gameId) ?? null) : null;
   }
@@ -194,8 +254,8 @@
     if (e.dataTransfer) e.dataTransfer.effectAllowed = "copyMove";
   }
 
-  function canDrop(e: DragEvent) {
-    return !!draft && !!e.dataTransfer?.types.includes(GAME_MIME);
+  function canDrop(e: DragEvent, f: BoardField) {
+    return !!draft && f.collectionId == null && !!e.dataTransfer?.types.includes(GAME_MIME);
   }
 
   function dropOnSlot(e: DragEvent, f: BoardField, col: number, row: number) {
@@ -236,13 +296,28 @@
 
 {#if shown}
   <div class="board-screen">
-    <main class="scroll">
+    <main class="scroll" bind:clientWidth={mainW}>
       <div class="bar">
         {#if draft}
           <input class="name-input" bind:value={draft.name} aria-label="Name des Boards" />
           <span class="badge">Bearbeiten</span>
           <span class="spacer"></span>
-          <button class="btn" onclick={addField}><Icon name="plus" size={16} />Feld hinzufügen</button>
+          <button class="btn" onclick={() => addField()}><Icon name="plus" size={16} />Feld hinzufügen</button>
+          {#if app.collections.length}
+            <select
+              class="input collection-pick"
+              aria-label="Sammlung als Feld hinzufügen"
+              onchange={(e) => {
+                const v = Number(e.currentTarget.value);
+                e.currentTarget.value = "";
+                if (v) addField(v);
+              }}>
+              <option value="">Sammlung als Feld …</option>
+              {#each app.collections as c (c.id)}
+                <option value={c.id}>{c.name}</option>
+              {/each}
+            </select>
+          {/if}
           <button class="btn" onclick={cancel}>Abbrechen</button>
           <button class="btn primary" onclick={save} disabled={saving || !draft.name.trim()}>{saving ? "Speichert …" : "Fertig"}</button>
         {:else}
@@ -277,16 +352,18 @@
                   <Icon name="grip" size={18} />
                 </button>
                 <input class="title-input" bind:value={f.title} placeholder="Titel" aria-label="Titel des Felds" />
+                {#if f.collectionId != null}<span class="badge small" title="Zeigt die Spiele der Sammlung von selbst">Sammlung{collectionName(f) ? `: ${collectionName(f)}` : " (gelöscht)"}</span>{/if}
                 <span class="muted size">{f.cols} × {f.rows}</span>
                 <button class="icon-btn" onclick={() => removeField(f)} aria-label="Feld entfernen" title="Feld entfernen"><Icon name="trash" size={15} /></button>
               {:else}
                 <h2>{f.title}</h2>
-                <span class="muted">{f.slots.length} {f.slots.length === 1 ? "Spiel" : "Spiele"}</span>
+                {@const n = placed(f).length}
+                <span class="muted">{n} {n === 1 ? "Spiel" : "Spiele"}</span>
               {/if}
             </header>
-            <div class="slots" style="grid-template-columns: repeat({f.cols}, var(--cw)); grid-template-rows: repeat({f.rows}, var(--ch))">
+            <div class="slots" class:scrolls={scrolls(f)} use:sideScroll style="grid-template-columns: repeat({gridCols(f)}, var(--cw)); grid-template-rows: repeat({f.rows}, var(--ch))">
               {#each { length: f.rows } as _, row}
-                {#each { length: f.cols } as _, col}
+                {#each { length: gridCols(f) } as _, col}
                   {@const g = gameAt(f, col, row)}
                   {@const key = slotKey(f, col, row)}
                   <div
@@ -295,7 +372,7 @@
                     class:drop={dropSlot === key}
                     role="listitem"
                     ondragover={(e) => {
-                      if (canDrop(e)) {
+                      if (canDrop(e, f)) {
                         e.preventDefault();
                         dropSlot = key;
                       }
@@ -304,8 +381,10 @@
                     ondrop={(e) => dropOnSlot(e, f, col, row)}>
                     {#if g}
                       {@const aura = auraFor(g)}
-                      <div class="game" class:dim={!g.installed} class:glow={!!aura} style={aura ? `--aura: ${rgba(aura, 1)}` : undefined} draggable={editing} ondragstart={(e) => dragGame(e, g.id, key)} role="presentation">
-                        {#if editing}
+                      <div class="game" class:dim={!g.installed} class:glow={!!aura} style={aura ? `--aura: ${rgba(aura, 1)}` : undefined} draggable={editing && f.collectionId == null} ondragstart={(e) => dragGame(e, g.id, key)} role="presentation">
+                        {#if editing && f.collectionId != null}
+                          <Cover game={g} showBadge={false} radius={10} />
+                        {:else if editing}
                           <Cover game={g} showBadge={false} radius={10} />
                           <button class="remove" onclick={() => setSlot(f, col, row, null)} aria-label="{g.name} aus dem Feld nehmen" title="Entfernen"><Icon name="close" size={14} /></button>
                         {:else}
@@ -317,7 +396,7 @@
                           </button>
                         {/if}
                       </div>
-                    {:else if editing}
+                    {:else if editing && f.collectionId == null}
                       <span class="plus" aria-hidden="true">+</span>
                     {/if}
                   </div>
@@ -528,8 +607,24 @@
     flex: 1;
     display: grid;
     gap: var(--gap);
-    justify-content: center;
+    /* "safe": a field that scrolls starts at its left edge, not cut off. */
+    justify-content: safe center;
     align-content: start;
+  }
+  .slots.scrolls {
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .collection-pick {
+    width: auto;
+    min-width: 180px;
+  }
+  .badge.small {
+    padding: 3px 9px;
+    font-size: 12px;
+    white-space: nowrap;
   }
   .slot {
     position: relative;
