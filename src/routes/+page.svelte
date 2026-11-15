@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { app } from "$lib/state.svelte";
-  import type { Game } from "$lib/types";
+  import type { Game, TrackerEvent } from "$lib/types";
   import Sidebar from "$lib/components/Sidebar.svelte";
   import Library from "$lib/components/Library.svelte";
   import GameDetail from "$lib/components/GameDetail.svelte";
@@ -19,7 +19,27 @@
       // Storage unavailable: keep defaults.
     }
     app.load().catch((e) => app.error(e));
-    const unlisten = [listen<Game>("game-updated", (e) => app.upsert(e.payload))];
+    const unlisten = [
+      listen<Game>("game-updated", (e) => app.upsert(e.payload)),
+      listen<TrackerEvent>("tracker", (e) => {
+        const ev = e.payload;
+        const name = app.byId.get(ev.gameId)?.name ?? "Spiel";
+        if (ev.type === "started") {
+          if (!app.running.includes(ev.gameId)) app.running.push(ev.gameId);
+        } else {
+          app.running = app.running.filter((id) => id !== ev.gameId);
+          if (ev.type === "ended") {
+            const mins = Math.max(1, Math.round((ev.endedAt - ev.startedAt) / 60));
+            app.toast(`${name}: ${mins >= 60 ? `${Math.floor(mins / 60)} Std. ${mins % 60} Min.` : `${mins} Min.`} gespielt`);
+          } else {
+            app.toast(`${name}: Spielzeit konnte nicht gemessen werden. Trag in den Spieldetails die Exe ein.`, "error", {
+              label: "Öffnen",
+              run: () => (app.screen = { kind: "detail", id: ev.gameId }),
+            });
+          }
+        }
+      }),
+    ];
     return () => unlisten.forEach((p) => p.then((f) => f()));
   });
 
