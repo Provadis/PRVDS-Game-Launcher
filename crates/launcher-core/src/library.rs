@@ -88,6 +88,14 @@ CREATE TABLE boards (
 "#,
 ];
 
+/// A game's id with the clues for spotting its process.
+#[derive(Debug, Clone)]
+pub struct ProcessHint {
+    pub id: i64,
+    pub install_dir: Option<String>,
+    pub process_exe: Option<String>,
+}
+
 pub struct Library {
     conn: Connection,
 }
@@ -327,6 +335,23 @@ impl Library {
     pub fn delete_game(&self, id: i64) -> Result<()> {
         self.conn.execute("DELETE FROM games WHERE id = ?1", [id])?;
         Ok(())
+    }
+
+    /// What the tracker needs to recognise each game.
+    pub fn process_hints(&self) -> Result<Vec<ProcessHint>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, install_dir, process_exe FROM games")?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(ProcessHint {
+                    id: r.get(0)?,
+                    install_dir: r.get(1)?,
+                    process_exe: r.get(2)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(rows)
     }
 
     pub fn record_launch(&self, id: i64, at: i64) -> Result<()> {

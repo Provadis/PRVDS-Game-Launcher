@@ -186,7 +186,7 @@ export interface Settings {
 }
 
 export type TrackerEvent =
-  | { type: "started"; gameId: number; at: number }
+  | { type: "started"; gameId: number; at: number; detected: boolean }
   | { type: "ended"; gameId: number; startedAt: number; endedAt: number }
   | { type: "notDetected"; gameId: number };
 
