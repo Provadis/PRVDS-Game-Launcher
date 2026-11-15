@@ -34,7 +34,7 @@ fn desktop_to_library_and_back() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/Hearthstone.lnk");
     fs::copy(&fixture, desktop.join("Hearthstone.lnk")).unwrap();
 
-    let found = scan_dirs(&[desktop.clone()]);
+    let found = scan_dirs(std::slice::from_ref(&desktop));
     assert_eq!(found.len(), 4);
     let games: Vec<_> = found.iter().filter(|c| c.likely_game).collect();
     let names: Vec<&str> = games.iter().map(|c| c.title.as_str()).collect();
