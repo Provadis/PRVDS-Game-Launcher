@@ -93,8 +93,47 @@ pub fn scan(platforms: &[Platform]) -> Vec<InstalledGame> {
     // One entry per store id.
     let mut seen = HashSet::new();
     out.retain(|g| seen.insert((g.platform, g.platform_id.to_lowercase())));
+    let mut out = drop_store_duplicates(out);
     out.sort_by_key(|g| g.name.to_lowercase());
     out
+}
+
+/// Games bought on Steam or Epic that need a publisher launcher (EA App,
+/// Ubisoft Connect) show up in both. The store copy wins: it starts the
+/// publisher launcher itself. Matched by install folder, else by name.
+pub fn drop_store_duplicates(games: Vec<InstalledGame>) -> Vec<InstalledGame> {
+    let is_store = |p: Platform| matches!(p, Platform::Steam | Platform::Epic);
+    let is_publisher = |p: Platform| matches!(p, Platform::Ea | Platform::Ubisoft);
+    let dir_key = |g: &InstalledGame| {
+        g.install_dir
+            .as_deref()
+            .map(|d| d.replace('/', "\\").trim_end_matches('\\').to_lowercase())
+    };
+    let (mut stores, rest): (Vec<_>, Vec<_>) =
+        games.into_iter().partition(|g| is_store(g.platform));
+    let mut out = Vec::new();
+    for g in rest {
+        if !is_publisher(g.platform) {
+            out.push(g);
+            continue;
+        }
+        let dir = dir_key(&g);
+        let name = normalize_name(&g.name);
+        let twin = stores
+            .iter_mut()
+            .find(|s| (dir.is_some() && dir_key(s) == dir) || normalize_name(&s.name) == name);
+        match twin {
+            // Keep what only the publisher knows, e.g. the game exe.
+            Some(s) => {
+                if s.process_exe.is_none() {
+                    s.process_exe = g.process_exe;
+                }
+            }
+            None => out.push(g),
+        }
+    }
+    stores.extend(out);
+    stores
 }
 
 fn program_data() -> PathBuf {
@@ -634,6 +673,65 @@ mod tests {
         let games = steam_games(&[root]);
         assert_eq!(games.len(), 1);
         assert_eq!(games[0].name, "Baldur's Gate 3");
+    }
+
+    #[test]
+    fn store_copy_beats_publisher_launcher() {
+        let g = |platform, id: &str, name: &str, dir: &str, exe: Option<&str>| InstalledGame {
+            platform,
+            platform_id: id.into(),
+            name: name.into(),
+            install_dir: Some(dir.into()),
+            launch: Launch::Url { url: String::new() },
+            process_exe: exe.map(Into::into),
+        };
+        let found = vec![
+            g(
+                Platform::Steam,
+                "1222700",
+                "A Way Out",
+                r"D:\SteamLibrary\steamapps\common\A Way Out",
+                None,
+            ),
+            g(
+                Platform::Ea,
+                "awo",
+                "A Way Out",
+                r"d:/steamlibrary/steamapps/common/a way out/",
+                Some("AWayOut.exe"),
+            ),
+            g(
+                Platform::Epic,
+                "Sugar",
+                "Rocket League",
+                r"C:\Epic\rocketleague",
+                None,
+            ),
+            g(
+                Platform::Ubisoft,
+                "13504",
+                "Assassin's Creed Mirage",
+                r"C:\Ubisoft\ACM",
+                None,
+            ),
+            g(
+                Platform::Ea,
+                "fc25",
+                "EA SPORTS FC 25",
+                r"C:\EA Games\FC25",
+                None,
+            ),
+            g(Platform::Battlenet, "Fen", "Rocket League", r"C:\x", None),
+        ];
+        let kept = drop_store_duplicates(found);
+        let names: Vec<_> = kept.iter().map(|g| (g.platform, g.name.as_str())).collect();
+        assert_eq!(kept.len(), 5);
+        assert!(!names.contains(&(Platform::Ea, "A Way Out")));
+        let awo = kept.iter().find(|g| g.name == "A Way Out").unwrap();
+        assert_eq!(awo.platform, Platform::Steam);
+        assert_eq!(awo.process_exe.as_deref(), Some("AWayOut.exe"));
+        // Only EA/Ubisoft are folded into a store copy.
+        assert!(names.contains(&(Platform::Battlenet, "Rocket League")));
     }
 
     #[test]
