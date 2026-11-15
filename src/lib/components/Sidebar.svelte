@@ -31,6 +31,9 @@
     <button class="btn import" onclick={() => (app.screen = { kind: "import" })}>
       <Icon name="download" />Vom Desktop importieren
     </button>
+    <button class="item" class:active={app.screen.kind === "settings"} onclick={() => (app.screen = { kind: "settings" })}>
+      <Icon name="settings" />Einstellungen
+    </button>
   </div>
 </nav>
 

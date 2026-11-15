@@ -8,6 +8,7 @@
   import Library from "$lib/components/Library.svelte";
   import GameDetail from "$lib/components/GameDetail.svelte";
   import ImportWizard from "$lib/components/ImportWizard.svelte";
+  import Settings from "$lib/components/Settings.svelte";
   import Toasts from "$lib/components/Toasts.svelte";
 
   onMount(() => {
@@ -50,6 +51,8 @@
       {#key app.screen.id}
         <GameDetail id={app.screen.id} />
       {/key}
+    {:else if app.screen.kind === "settings"}
+      <Settings />
     {:else}
       <Library />
     {/if}
