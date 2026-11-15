@@ -20,6 +20,73 @@ pub struct Board {
     pub id: i64,
     pub name: String,
     pub fields: Vec<BoardField>,
+    #[serde(default)]
+    pub background: Option<BoardBackground>,
+}
+
+/// Built-in backgrounds, drawn by the app itself (no image files).
+pub const BACKGROUND_PRESETS: &[&str] = &[
+    "aurora",
+    "nebula",
+    "sunset",
+    "drift",
+    "synthwave",
+    "peaks",
+    "ocean",
+];
+
+/// File types a board background may be.
+pub const BACKGROUND_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "mp4", "webm"];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BoardBackground {
+    /// "preset" (value = preset name), "image" or "video" (value = file path
+    /// inside the app's backgrounds folder).
+    pub kind: String,
+    pub value: String,
+    /// Which part of a wide picture stays in view: "left", "center", "right".
+    pub align: String,
+    /// Darkening over the background, 0 to 85 percent, so text stays readable.
+    pub dim: u8,
+}
+
+impl Default for BoardBackground {
+    fn default() -> Self {
+        Self {
+            kind: "preset".into(),
+            value: "aurora".into(),
+            align: "center".into(),
+            dim: 35,
+        }
+    }
+}
+
+/// Drops a background that names an unknown preset or a file type that is
+/// not allowed, and keeps the rest within bounds.
+pub fn normalize_background(bg: Option<BoardBackground>) -> Option<BoardBackground> {
+    let mut bg = bg?;
+    let ok = match bg.kind.as_str() {
+        "preset" => BACKGROUND_PRESETS.contains(&bg.value.as_str()),
+        "image" | "video" => {
+            let ext = bg
+                .value
+                .rsplit('.')
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            BACKGROUND_EXTENSIONS.contains(&ext.as_str())
+        }
+        _ => false,
+    };
+    if !ok {
+        return None;
+    }
+    if !["left", "center", "right"].contains(&bg.align.as_str()) {
+        bg.align = "center".into();
+    }
+    bg.dim = bg.dim.min(85);
+    Some(bg)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,6 +135,7 @@ pub struct BoardSlot {
 #[serde(rename_all = "camelCase", default)]
 pub struct BoardLayout {
     pub fields: Vec<BoardField>,
+    pub background: Option<BoardBackground>,
 }
 
 /// Cleans up a board coming from the UI or an older save: sizes within
@@ -170,6 +238,24 @@ mod tests {
         );
         assert_eq!(out[0].collection_id, Some(3));
         assert!(out[0].slots.is_empty());
+    }
+
+    #[test]
+    fn backgrounds_are_checked() {
+        let bg = |kind: &str, value: &str| {
+            Some(BoardBackground {
+                kind: kind.into(),
+                value: value.into(),
+                align: "sideways".into(),
+                dim: 200,
+            })
+        };
+        let ok = normalize_background(bg("preset", "aurora")).unwrap();
+        assert_eq!((ok.align.as_str(), ok.dim), ("center", 85));
+        assert!(normalize_background(bg("preset", "nope")).is_none());
+        assert!(normalize_background(bg("video", r"C:\x\bg.webm")).is_some());
+        assert!(normalize_background(bg("image", r"C:\x\run.exe")).is_none());
+        assert!(normalize_background(None).is_none());
     }
 
     #[test]

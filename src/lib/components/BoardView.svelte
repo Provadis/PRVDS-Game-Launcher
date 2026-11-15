@@ -4,6 +4,8 @@
   import { app } from "$lib/state.svelte";
   import { MAX_FIELD_COLS, MAX_FIELD_ROWS, type Board, type BoardField, type Game } from "$lib/types";
   import { auraOf, boardAuraOn, fieldWash, rgba } from "$lib/aura";
+  import BackgroundPicker from "./BackgroundPicker.svelte";
+  import BoardBackdrop from "./BoardBackdrop.svelte";
   import Cover from "./Cover.svelte";
   import Icon from "./Icon.svelte";
 
@@ -72,6 +74,7 @@
   let saving = $state(false);
   let search = $state("");
   let dropSlot = $state<string | null>(null);
+  let pickingBg = $state(false);
 
   // Cover colours that tint the fields ("aura"), keyed by game and cover.
   const auraOn = boardAuraOn();
@@ -121,6 +124,7 @@
 
   function cancel() {
     draft = null;
+    pickingBg = false;
   }
 
   async function save() {
@@ -130,6 +134,7 @@
       const saved = await api.saveBoard($state.snapshot(draft));
       app.boards = app.boards.map((b) => (b.id === saved.id ? saved : b));
       draft = null;
+      pickingBg = false;
     } catch (e) {
       app.error(e);
     } finally {
@@ -295,7 +300,10 @@
 <svelte:window onkeydown={(e) => editing && e.key === "Escape" && cancel()} />
 
 {#if shown}
-  <div class="board-screen">
+  <div class="board-screen" class:has-bg={!!shown.background}>
+    {#if shown.background}
+      <BoardBackdrop bg={shown.background} />
+    {/if}
     <main class="scroll" bind:clientWidth={mainW}>
       <div class="bar">
         {#if draft}
@@ -318,6 +326,12 @@
               {/each}
             </select>
           {/if}
+          <span class="bg-wrap">
+            <button class="btn" class:active={pickingBg} onclick={() => (pickingBg = !pickingBg)}><Icon name="image" size={16} />Hintergrund</button>
+            {#if pickingBg}
+              <BackgroundPicker value={draft.background ?? null} onchange={(bg) => draft && (draft.background = bg)} onclose={() => (pickingBg = false)} />
+            {/if}
+          </span>
           <button class="btn" onclick={cancel}>Abbrechen</button>
           <button class="btn primary" onclick={save} disabled={saving || !draft.name.trim()}>{saving ? "Speichert …" : "Fertig"}</button>
         {:else}
@@ -437,10 +451,25 @@
 
 <style>
   .board-screen {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
     height: 100vh;
+  }
+  .board-screen > main,
+  .board-screen > aside {
+    position: relative;
+    z-index: 1;
+  }
+  .bg-wrap {
+    position: relative;
+  }
+  /* Over a background, fields turn to frosted glass. */
+  .has-bg .field {
+    background-color: rgb(22 24 29 / 0.62);
+    backdrop-filter: blur(14px) saturate(1.2);
+    border-color: rgb(255 255 255 / 0.08);
   }
   main {
     flex: 1;

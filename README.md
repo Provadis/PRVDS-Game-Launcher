@@ -26,7 +26,9 @@ Filtern, eigenen Ansichten und Spielzeitmessung.
   Filter nach Plattform, Tags und Favoriten.
 - **Boards:** eigene Ansichten zum Selbst-Anordnen. Ein Board hat Felder mit Titel, darin legst du Spiele per
   Drag & Drop auf Plätze, Lücken inklusive. Ein Spiel darf in mehreren Feldern und Boards stehen.
-  Ein Board lässt sich über das Haus-Symbol in der Seitenleiste als Startseite festlegen.
+  Ein Board lässt sich über das Haus-Symbol in der Seitenleiste als Startseite festlegen. Felder können auch
+  eine Sammlung zeigen, und jedes Board kann einen Hintergrund haben: eingebaute (teils animierte) Szenen oder ein
+  eigenes Bild oder Video.
 - **Eigene Ansichten:** Sammlungen per Drag & Drop und gespeicherte Ansichten (Filter, Sortierung, Layout).
 - **Cover und Infos:** automatisch über Steam, optional SteamGridDB und IGDB. Eigene Bilder gehen per Drag & Drop.
 - **Spielzeit:** erkennt, wann ein Spiel läuft, auch wenn es über Steam, eine Verknüpfung oder schon vor der App gestartet wurde, und zeigt Sitzungen und Verlauf.
