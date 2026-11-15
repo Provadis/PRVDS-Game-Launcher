@@ -8,9 +8,11 @@
   import Library from "$lib/components/Library.svelte";
   import GameDetail from "$lib/components/GameDetail.svelte";
   import ImportWizard from "$lib/components/ImportWizard.svelte";
+  import LauncherImport from "$lib/components/LauncherImport.svelte";
   import Settings from "$lib/components/Settings.svelte";
   import Toasts from "$lib/components/Toasts.svelte";
   import { checkOnStart } from "$lib/updates";
+  import { syncOnStart } from "$lib/launchers";
 
   onMount(() => {
     try {
@@ -19,7 +21,7 @@
     } catch {
       // Storage unavailable: keep defaults.
     }
-    app.load().catch((e) => app.error(e));
+    app.load().then(syncOnStart).catch((e) => app.error(e));
     setTimeout(checkOnStart, 3000);
     const unlisten = [
       listen<Game>("game-updated", (e) => app.upsert(e.payload)),
@@ -66,7 +68,11 @@
 
 <div class="app">
   {#if app.screen.kind === "import"}
-    <ImportWizard />
+    {#if app.screen.from === "launchers"}
+      <LauncherImport />
+    {:else}
+      <ImportWizard />
+    {/if}
   {:else}
     <Sidebar />
     {#if app.screen.kind === "detail"}

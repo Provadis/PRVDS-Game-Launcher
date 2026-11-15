@@ -88,6 +88,18 @@
   async function undo() {
     menuOpen = false;
     if (!game) return;
+    if (!game.journalId) {
+      if (!confirm(`„${game.name}“ aus der Bibliothek entfernen? Das Spiel bleibt installiert, Spielzeit und Tags gehen verloren.`)) return;
+      try {
+        await api.removeGame(game.id);
+        app.remove(game.id);
+        app.screen = { kind: "library" };
+        app.toast(`„${game.name}“ entfernt`);
+      } catch (e) {
+        app.error(e);
+      }
+      return;
+    }
     if (!confirm(`„${game.name}“ zurück auf den Desktop legen und aus der Bibliothek entfernen?`)) return;
     try {
       const path = await api.undoImport(game.id);
@@ -166,7 +178,9 @@
                 <button role="menuitem" onclick={() => patch({ hidden: !game.hidden })}>
                   <Icon name={game.hidden ? "eye" : "eyeOff"} />{game.hidden ? "Wieder anzeigen" : "Verstecken"}
                 </button>
-                <button role="menuitem" class="danger" onclick={undo}><Icon name="undo" />Zurück auf den Desktop</button>
+                <button role="menuitem" class="danger" onclick={undo}>
+                  <Icon name={game.journalId ? "undo" : "trash"} />{game.journalId ? "Zurück auf den Desktop" : "Aus Bibliothek entfernen"}
+                </button>
               </div>
             {/if}
           </div>
