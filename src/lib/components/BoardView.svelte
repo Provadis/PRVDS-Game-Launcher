@@ -15,8 +15,11 @@
   const GAP = 14;
   const PAD = 16;
   const HEAD = 46;
-  const fieldW = (f: BoardField) => f.cols * CW + (f.cols - 1) * GAP + 2 * PAD;
-  const fieldH = (f: BoardField) => HEAD + f.rows * CH + (f.rows - 1) * GAP + 2 * PAD;
+  // Sizes are rounded up to whole grid steps, so field edges line up with
+  // each other; the covers sit centred in the extra space.
+  const toStep = (px: number) => Math.ceil(px / STEP) * STEP;
+  const fieldW = (f: BoardField) => toStep(f.cols * CW + (f.cols - 1) * GAP + 2 * PAD);
+  const fieldH = (f: BoardField) => toStep(HEAD + f.rows * CH + (f.rows - 1) * GAP + 2 * PAD);
 
   let board = $derived(app.boards.find((b) => b.id === id) ?? null);
   let draft = $state<Board | null>(null);
@@ -25,6 +28,8 @@
   let saving = $state(false);
   let search = $state("");
   let dropSlot = $state<string | null>(null);
+  /** The field being moved or resized, and whether it sits on another one. */
+  let dragging = $state<{ id: string; blocked: boolean } | null>(null);
 
   let filled = $derived(shown ? shown.fields.reduce((n, f) => n + f.slots.length, 0) : 0);
   let canvasW = $derived(
@@ -93,7 +98,9 @@
     draft.fields = draft.fields.filter((x) => x.id !== f.id);
   }
 
-  /** Drag a field by its handle (move) or its corner (resize), snapping to the grid. */
+  /** Drag a field by its handle (move) or its corner (resize), snapping to
+   * the grid. It may pass over other fields; it glows red while it would
+   * overlap one, and snaps back if let go there. */
   function startDrag(e: PointerEvent, f: BoardField, mode: "move" | "resize") {
     if (!draft || e.button !== 0) return;
     e.preventDefault();
@@ -103,26 +110,27 @@
     // Shrinking never cuts off a placed game.
     const minCols = Math.max(1, ...f.slots.map((s) => s.col + 1));
     const minRows = Math.max(1, ...f.slots.map((s) => s.row + 1));
+    dragging = { id: f.id, blocked: false };
     const move = (ev: PointerEvent) => {
       const dx = ev.clientX - start.px;
       const dy = ev.clientY - start.py;
       if (mode === "move") {
-        const x = Math.max(0, start.x + Math.round(dx / STEP));
-        const y = Math.max(0, start.y + Math.round(dy / STEP));
-        if (!overlaps(f, x, y, f.cols, f.rows)) {
-          f.x = x;
-          f.y = y;
-        }
+        f.x = Math.max(0, start.x + Math.round(dx / STEP));
+        f.y = Math.max(0, start.y + Math.round(dy / STEP));
       } else {
-        const cols = Math.min(MAX_FIELD_COLS, Math.max(minCols, start.cols + Math.round(dx / (CW + GAP))));
-        const rows = Math.min(MAX_FIELD_ROWS, Math.max(minRows, start.rows + Math.round(dy / (CH + GAP))));
-        if (!overlaps(f, f.x, f.y, cols, rows)) {
-          f.cols = cols;
-          f.rows = rows;
-        }
+        f.cols = Math.min(MAX_FIELD_COLS, Math.max(minCols, start.cols + Math.round(dx / (CW + GAP))));
+        f.rows = Math.min(MAX_FIELD_ROWS, Math.max(minRows, start.rows + Math.round(dy / (CH + GAP))));
       }
+      dragging = { id: f.id, blocked: overlaps(f, f.x, f.y, f.cols, f.rows) };
     };
     const up = () => {
+      if (dragging?.blocked) {
+        f.x = start.x;
+        f.y = start.y;
+        f.cols = start.cols;
+        f.rows = start.rows;
+      }
+      dragging = null;
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", up);
@@ -229,7 +237,11 @@
 
       <div class="canvas" class:editing style="width: {canvasW}px; height: {canvasH}px; --cw: {CW}px; --ch: {CH}px; --gap: {GAP}px; --pad: {PAD}px; --head: {HEAD}px; --step: {STEP}px">
         {#each shown.fields as f (f.id)}
-          <section class="field" style="left: {f.x * STEP}px; top: {f.y * STEP}px; width: {fieldW(f)}px; height: {fieldH(f)}px" aria-label={f.title || "Feld"}>
+          <section
+            class="field"
+            class:dragging={dragging?.id === f.id}
+            class:blocked={dragging?.id === f.id && dragging.blocked}
+            style="left: {f.x * STEP}px; top: {f.y * STEP}px; width: {fieldW(f)}px; height: {fieldH(f)}px" aria-label={f.title || "Feld"}>
             <header>
               {#if editing}
                 <button class="handle" onpointerdown={(e) => startDrag(e, f, "move")} aria-label="Feld verschieben" title="Verschieben">
@@ -392,6 +404,20 @@
   .editing .field {
     border: 2px dashed var(--border-strong);
   }
+  .field {
+    display: flex;
+    flex-direction: column;
+  }
+  .field.dragging {
+    z-index: 5;
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+  }
+  .field.blocked {
+    border: 2px solid #ef4444;
+    box-shadow:
+      0 0 0 4px rgb(239 68 68 / 0.25),
+      0 0 28px rgb(239 68 68 / 0.45);
+  }
   .field header {
     height: var(--head);
     display: flex;
@@ -452,8 +478,11 @@
     background: var(--surface-3);
   }
   .slots {
+    flex: 1;
     display: grid;
     gap: var(--gap);
+    justify-content: center;
+    align-content: start;
   }
   .slot {
     position: relative;
