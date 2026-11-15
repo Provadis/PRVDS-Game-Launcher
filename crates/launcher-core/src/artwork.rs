@@ -59,7 +59,7 @@ const SGDB: &str = "https://www.steamgriddb.com/api/v2";
 impl ArtClient {
     pub fn new(keys: ArtworkKeys) -> Self {
         let http = reqwest::blocking::Client::builder()
-            .user_agent("PRVDS-Game-Launcher/0.1")
+            .user_agent(concat!("PRVDS-Game-Launcher/", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(20))
             .build()
             .expect("http client");
@@ -90,7 +90,7 @@ impl ArtClient {
         let mut out = Vec::new();
         if let Some(appid) = Self::steam_id(game) {
             out.extend(
-                steam_cdn_urls(appid, kind)
+                self.steam_urls(appid, kind)
                     .into_iter()
                     .filter(|u| self.exists(u))
                     .take(1)
@@ -109,7 +109,8 @@ impl ArtClient {
 
     pub fn best(&self, game: &Game, kind: ArtKind) -> Option<ArtOption> {
         if let Some(appid) = Self::steam_id(game)
-            && let Some(url) = steam_cdn_urls(appid, kind)
+            && let Some(url) = self
+                .steam_urls(appid, kind)
                 .into_iter()
                 .find(|u| self.exists(u))
         {
@@ -129,6 +130,47 @@ impl ArtClient {
         self.igdb_art(game, kind)
             .ok()
             .and_then(|v| v.into_iter().next())
+    }
+
+    /// Candidate Steam image URLs, best first: the real asset paths from the
+    /// store API (newer games keep their art under a hashed folder), then the
+    /// classic fixed paths.
+    fn steam_urls(&self, appid: &str, kind: ArtKind) -> Vec<String> {
+        let mut urls = self
+            .steam_store_item(appid)
+            .map(|item| store_asset_urls(&item, kind))
+            .unwrap_or_default();
+        for u in steam_cdn_urls(appid, kind) {
+            if !urls.contains(&u) {
+                urls.push(u);
+            }
+        }
+        urls
+    }
+
+    /// The store item (with asset paths) from Steam's public store API.
+    fn steam_store_item(&self, appid: &str) -> Option<Value> {
+        let id: u64 = appid.parse().ok()?;
+        let input = serde_json::json!({
+            "ids": [{ "appid": id }],
+            "context": { "language": "german", "country_code": "DE" },
+            "data_request": { "include_assets": true }
+        });
+        let v: Value = self
+            .http
+            .get("https://api.steampowered.com/IStoreBrowseService/GetItems/v1/")
+            .query(&[("input_json", input.to_string())])
+            .send()
+            .ok()?
+            .error_for_status()
+            .ok()?
+            .json()
+            .ok()?;
+        v["response"]["store_items"]
+            .as_array()?
+            .iter()
+            .find(|i| i["appid"].as_u64() == Some(id))
+            .cloned()
     }
 
     fn exists(&self, url: &str) -> bool {
@@ -281,6 +323,27 @@ impl ArtClient {
         std::fs::write(dest, &bytes).ctx(dest)?;
         Ok(())
     }
+}
+
+const STEAM_ASSET_BASE: &str = "https://shared.steamstatic.com/store_item_assets/";
+
+/// Image URLs from a `IStoreBrowseService/GetItems` store item, best first.
+/// `assets.asset_url_format` looks like `steam/apps/<id>/<hash>/${FILENAME}?t=…`.
+pub fn store_asset_urls(item: &Value, kind: ArtKind) -> Vec<String> {
+    let assets = &item["assets"];
+    let Some(format) = assets["asset_url_format"].as_str() else {
+        return vec![];
+    };
+    let fields: &[&str] = match kind {
+        ArtKind::Cover => &["library_capsule_2x", "library_capsule"],
+        ArtKind::Hero => &["library_hero_2x", "library_hero"],
+    };
+    fields
+        .iter()
+        .filter_map(|f| assets[*f].as_str())
+        .filter(|file| !file.is_empty())
+        .map(|file| format!("{STEAM_ASSET_BASE}{}", format.replace("${FILENAME}", file)))
+        .collect()
 }
 
 pub fn steam_cdn_urls(appid: &str, kind: ArtKind) -> Vec<String> {
@@ -505,6 +568,28 @@ mod tests {
             "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/co69sm.jpg"
         );
         assert_eq!(igdb_images(&g, ArtKind::Hero).len(), 1);
+    }
+
+    #[test]
+    fn steam_store_assets() {
+        let item = json!({
+            "appid": 2807960,
+            "assets": {
+                "asset_url_format": "steam/apps/2807960/5a1d4c7e0f2b/${FILENAME}?t=1730000000",
+                "library_capsule": "library_600x900.jpg",
+                "library_capsule_2x": "library_600x900_2x.jpg",
+                "library_hero": "library_hero.jpg"
+            }
+        });
+        assert_eq!(
+            store_asset_urls(&item, ArtKind::Cover),
+            vec![
+                "https://shared.steamstatic.com/store_item_assets/steam/apps/2807960/5a1d4c7e0f2b/library_600x900_2x.jpg?t=1730000000",
+                "https://shared.steamstatic.com/store_item_assets/steam/apps/2807960/5a1d4c7e0f2b/library_600x900.jpg?t=1730000000",
+            ]
+        );
+        assert_eq!(store_asset_urls(&item, ArtKind::Hero).len(), 1);
+        assert!(store_asset_urls(&json!({"appid": 1}), ArtKind::Cover).is_empty());
     }
 
     #[test]

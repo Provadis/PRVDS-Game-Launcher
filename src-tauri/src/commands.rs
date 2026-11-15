@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use launcher_core::artwork::{ArtKind, ArtOption, ArtworkKeys};
 use launcher_core::desktop_icons::{self, IconPosition};
+use launcher_core::importer::EntryState;
 use launcher_core::locate::locate;
 use launcher_core::model::{Collection, Game, GamePatch, NewGame, Session};
 use launcher_core::playtime::Matcher;
@@ -34,10 +35,20 @@ async fn blocking<T: Send + 'static>(
 // ---- import -----------------------------------------------------------------
 
 #[tauri::command]
-pub fn scan_desktop() -> Vec<Candidate> {
+pub fn scan_desktop(state: State<AppState>) -> Vec<Candidate> {
+    // Shortcuts we could only copy (public desktop) are still there: hide them.
+    let kept: Vec<String> = state
+        .importer
+        .entries()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|e| e.original_kept && e.state == EntryState::Moved)
+        .map(|e| e.original_path.to_lowercase())
+        .collect();
     scanner::scan_dirs(&scanner::desktop_dirs())
         .into_iter()
         .filter(|c| !c.title.to_lowercase().contains("prvds game launcher"))
+        .filter(|c| !kept.contains(&c.path.to_lowercase()))
         .collect()
 }
 
@@ -53,6 +64,9 @@ pub struct ImportFailure {
 pub struct ImportReport {
     imported: Vec<Game>,
     failed: Vec<ImportFailure>,
+    /// Names of games whose shortcut had to stay on the desktop (no rights
+    /// to delete it there, typically the public desktop).
+    kept_on_desktop: Vec<String>,
 }
 
 #[tauri::command]
@@ -63,18 +77,28 @@ pub fn import_shortcuts(
 ) -> ImportReport {
     let mut imported = Vec::new();
     let mut failed = Vec::new();
+    let mut kept_on_desktop = Vec::new();
     // Remember where the icons sat, so "back to desktop" can put them there again.
     let positions = desktop_icons::read_positions();
     for path in paths {
         let pos = desktop_position(&positions, Path::new(&path));
         match import_one(&state, Path::new(&path), pos) {
-            Ok(game) => imported.push(game),
+            Ok((game, kept)) => {
+                if kept {
+                    kept_on_desktop.push(game.name.clone());
+                }
+                imported.push(game);
+            }
             Err(error) => failed.push(ImportFailure { path, error }),
         }
     }
     let ids: Vec<i64> = imported.iter().map(|g| g.id).collect();
     std::thread::spawn(move || enrich_games(app, ids));
-    ImportReport { imported, failed }
+    ImportReport {
+        imported,
+        failed,
+        kept_on_desktop,
+    }
 }
 
 /// The icon position of `path`, if the file lies directly on the desktop.
@@ -91,7 +115,8 @@ fn desktop_position(
         .flatten()
 }
 
-fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdResult<Game> {
+/// Imports one shortcut. The flag says whether the original had to stay.
+fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdResult<(Game, bool)> {
     let candidate = scanner::inspect(path).ok_or("Keine Verknüpfung")?;
     let entry = state.importer.move_in_at(path, pos).map_err(err)?;
     let install = locate(
@@ -117,7 +142,7 @@ fn import_one(state: &AppState, path: &Path, pos: Option<IconPosition>) -> CmdRe
     };
     let lib = state.lib.lock().unwrap();
     match lib.add_game(&new) {
-        Ok(g) => Ok(g),
+        Ok(g) => Ok((g, entry.original_kept)),
         Err(e) => {
             // Keep desktop and library consistent: put the shortcut back.
             let _ = state.importer.restore(&entry.id);
@@ -527,6 +552,8 @@ pub async fn refresh_metadata(app: AppHandle, id: i64) -> CmdResult<Game> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    /// App version, e.g. `0.2.0` or `0.2.0-dev.42` for dev builds.
+    version: String,
     keys: ArtworkKeys,
     data_dir: String,
     shortcuts_dir: String,
@@ -534,8 +561,9 @@ pub struct Settings {
 }
 
 #[tauri::command]
-pub fn get_settings(state: State<AppState>) -> Settings {
+pub fn get_settings(app: AppHandle, state: State<AppState>) -> Settings {
     Settings {
+        version: app.package_info().version.to_string(),
         keys: state.secrets.load(),
         data_dir: state.data_dir.to_string_lossy().into_owned(),
         shortcuts_dir: state

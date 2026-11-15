@@ -1,15 +1,26 @@
 name: Windows installer
 
-# Builds the NSIS/MSI installer. Run manually, or automatically on main.
+# Dev builds: every push to dev (and manual runs)
+#   -> PRVDS-Game-Launcher_<version>-dev.<run>_x64-setup.exe
+# Releases: a tag v<version> (set on main)
+#   -> PRVDS-Game-Launcher_<version>_x64-setup.exe and .msi
+# The version itself lives in package.json (see scripts/version.mjs).
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [dev]
     tags: ["v*"]
+
+concurrency:
+  group: installer-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -19,10 +30,44 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx tauri build
+
+      - name: Work out version
+        id: ver
+        run: |
+          node scripts/version.mjs check
+          base=$(node scripts/version.mjs)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="${GITHUB_REF#refs/tags/v}"
+            if [[ "$tag" != "$base" ]]; then
+              echo "::error::Tag v$tag does not match version $base in package.json"
+              exit 1
+            fi
+            echo "version=$base" >> "$GITHUB_OUTPUT"
+            echo "bundles=nsis,msi" >> "$GITHUB_OUTPUT"
+          else
+            # MSI only takes numeric versions, so dev builds are setup.exe only.
+            echo "version=$(node scripts/version.mjs dev "$GITHUB_RUN_NUMBER")" >> "$GITHUB_OUTPUT"
+            echo "bundles=nsis" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build ${{ steps.ver.outputs.version }}
+        run: >
+          npx tauri build
+          --bundles ${{ steps.ver.outputs.bundles }}
+          --config '{"version":"${{ steps.ver.outputs.version }}"}'
+
+      - name: Name the installers
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          mkdir -p dist-installer
+          cp target/release/bundle/nsis/*.exe "dist-installer/PRVDS-Game-Launcher_${v}_x64-setup.exe"
+          for f in target/release/bundle/msi/*.msi; do
+            [[ -e "$f" ]] && cp "$f" "dist-installer/PRVDS-Game-Launcher_${v}_x64.msi"
+          done
+          ls -l dist-installer
+
       - uses: actions/upload-artifact@v4
         with:
-          name: prvds-game-launcher-windows
-          path: |
-            target/release/bundle/nsis/*.exe
-            target/release/bundle/msi/*.msi
+          name: PRVDS-Game-Launcher_${{ steps.ver.outputs.version }}
+          path: dist-installer/*
+          if-no-files-found: error

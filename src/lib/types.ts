@@ -1,4 +1,4 @@
-export type Platform = "steam" | "epic" | "ubisoft" | "ea" | "battlenet" | "other";
+export type Platform = "steam" | "epic" | "ubisoft" | "ea" | "battlenet" | "riot" | "other";
 
 export const PLATFORMS: { id: Platform; label: string }[] = [
   { id: "steam", label: "Steam" },
@@ -6,6 +6,7 @@ export const PLATFORMS: { id: Platform; label: string }[] = [
   { id: "ubisoft", label: "Ubisoft" },
   { id: "ea", label: "EA" },
   { id: "battlenet", label: "Battle.net" },
+  { id: "riot", label: "Riot" },
   { id: "other", label: "Sonstige" },
 ];
 
@@ -151,6 +152,8 @@ export interface Candidate {
 export interface ImportReport {
   imported: Game[];
   failed: { path: string; error: string }[];
+  /** Games whose shortcut stayed on the (public) desktop: no rights to delete it. */
+  keptOnDesktop: string[];
 }
 
 export type ArtKind = "cover" | "hero";
@@ -168,6 +171,7 @@ export interface ArtworkKeys {
 }
 
 export interface Settings {
+  version: string;
   keys: ArtworkKeys;
   dataDir: string;
   shortcutsDir: string;

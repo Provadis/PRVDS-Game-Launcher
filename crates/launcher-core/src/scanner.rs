@@ -256,6 +256,7 @@ const LAUNCHER_EXES: &[(&str, Platform)] = &[
     ("origin.exe", Platform::Ea),
     ("battle.net launcher.exe", Platform::Battlenet),
     ("battle.net.exe", Platform::Battlenet),
+    ("riotclientservices.exe", Platform::Riot),
 ];
 
 pub fn launcher_exe_platform(exe_name: &str) -> Option<Platform> {
@@ -280,6 +281,7 @@ pub fn detect_platform(kind: ShortcutKind, info: &ShortcutInfo) -> (Platform, Op
         let id = match p {
             Platform::Steam => arg_after(args, "-applaunch"),
             Platform::Battlenet => exec_launch_code(args),
+            Platform::Riot => riot_product(args),
             _ => None,
         };
         // A launcher shortcut with a game id is a game, without one it is the launcher.
@@ -298,6 +300,10 @@ pub fn detect_platform(kind: ShortcutKind, info: &ShortcutInfo) -> (Platform, Op
         Platform::Ubisoft
     } else if lower.contains("\\ea games\\") || lower.contains("\\origin games\\") {
         Platform::Ea
+    } else if lower.contains("\\riot games\\") {
+        Platform::Riot
+    } else if is_blizzard_install(target) {
+        Platform::Battlenet
     } else {
         Platform::Other
     };
@@ -356,6 +362,26 @@ fn arg_after(args: &str, flag: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Riot shortcuts: `--launch-product=valorant --launch-patchline=live` → `valorant`.
+fn riot_product(args: &str) -> Option<String> {
+    args.split_whitespace().find_map(|a| {
+        let v = a.trim_matches('"');
+        let lower = v.to_ascii_lowercase();
+        lower
+            .strip_prefix("--launch-product=")
+            .map(|p| p.trim_matches('"').to_string())
+            .filter(|p| !p.is_empty())
+    })
+}
+
+/// Every Blizzard game folder holds a `.build.info` file next to its
+/// launcher exe (e.g. `Diablo IV\Diablo IV Launcher.exe`).
+fn is_blizzard_install(target: &str) -> bool {
+    std::path::Path::new(target)
+        .parent()
+        .is_some_and(|dir| dir.join(".build.info").is_file())
 }
 
 /// Battle.net shortcuts: `--exec="launch Pro"` → `Pro`.
@@ -489,7 +515,26 @@ fn is_likely_game(
 /// The user's desktop folder (honours OneDrive redirection via the
 /// Known Folder API on Windows).
 pub fn desktop_dirs() -> Vec<PathBuf> {
-    dirs::desktop_dir().into_iter().collect()
+    let mut out: Vec<PathBuf> = dirs::desktop_dir().into_iter().collect();
+    // The public desktop (C:\Users\Public\Desktop): Battle.net, Riot and many
+    // installers put their shortcuts there.
+    if let Some(public) = public_desktop()
+        && public.is_dir()
+        && !out.contains(&public)
+    {
+        out.push(public);
+    }
+    out
+}
+
+#[cfg(windows)]
+fn public_desktop() -> Option<PathBuf> {
+    std::env::var_os("PUBLIC").map(|p| PathBuf::from(p).join("Desktop"))
+}
+
+#[cfg(not(windows))]
+fn public_desktop() -> Option<PathBuf> {
+    None
 }
 
 #[cfg(test)]
@@ -557,6 +602,43 @@ mod tests {
             (Platform::Battlenet, Some("Pro".into()))
         );
         assert_eq!(url("https://example.com"), (Platform::Other, None));
+    }
+
+    #[test]
+    fn detects_riot_games() {
+        let client = r"C:\Riot Games\Riot Client\RiotClientServices.exe";
+        assert_eq!(
+            lnk(
+                client,
+                Some("--launch-product=valorant --launch-patchline=live")
+            ),
+            (Platform::Riot, Some("valorant".into()))
+        );
+        assert_eq!(
+            lnk(
+                client,
+                Some(r#""--launch-product=league_of_legends" --launch-patchline=live"#)
+            ),
+            (Platform::Riot, Some("league_of_legends".into()))
+        );
+        // The Riot Client itself is no game.
+        assert_eq!(lnk(client, None), (Platform::Other, None));
+    }
+
+    #[test]
+    fn detects_blizzard_game_folders() {
+        let tmp = tempfile::tempdir().unwrap();
+        let game = tmp.path().join("Diablo IV");
+        std::fs::create_dir_all(&game).unwrap();
+        let exe = game.join("Diablo IV Launcher.exe");
+        let exe = exe.to_str().unwrap();
+        assert_eq!(lnk(exe, None), (Platform::Other, None));
+        std::fs::write(
+            game.join(".build.info"),
+            "Branch!STRING:0|Product!STRING:0\n",
+        )
+        .unwrap();
+        assert_eq!(lnk(exe, None), (Platform::Battlenet, None));
     }
 
     #[test]

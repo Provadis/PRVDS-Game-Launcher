@@ -127,6 +127,10 @@
       <button class="btn danger" onclick={restoreAll} disabled={restoring}><Icon name="undo" size={16} />Alle zurück auf den Desktop</button>
     </div>
   </section>
+
+  {#if settings}
+    <p class="about muted">PRVDS Game Launcher · Version {settings.version}</p>
+  {/if}
 </main>
 
 <style>
@@ -182,6 +186,10 @@
     grid-template-columns: max-content 1fr;
     gap: 10px 24px;
     font-size: 14px;
+  }
+  .about {
+    font-size: 13px;
+    padding: 0 4px;
   }
   dt {
     color: var(--text-muted);

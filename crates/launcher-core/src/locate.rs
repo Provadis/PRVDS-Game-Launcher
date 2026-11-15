@@ -43,11 +43,36 @@ pub fn locate(
             .map(dir_only),
         (Platform::Epic, Some(id)) => epic_manifest_dir().and_then(|d| epic_lookup(&d, id, name)),
         (Platform::Ubisoft, Some(id)) => ubisoft_install_dir(id).map(dir_only),
+        (Platform::Riot, Some(id)) => riot_info(launch_target, id),
         _ => None,
     };
     found
         .or_else(|| uninstall_lookup(name).map(dir_only))
         .unwrap_or_default()
+}
+
+/// Riot games are started through the Riot Client; the game itself runs
+/// as a known exe in a sibling folder of `Riot Client`.
+fn riot_info(launch_target: Option<&str>, product: &str) -> Option<InstallInfo> {
+    let (folder, exe) = riot_product_info(product)?;
+    // ...\Riot Games\Riot Client\RiotClientServices.exe → ...\Riot Games
+    let root = launch_target
+        .and_then(|t| Path::new(t).parent()?.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| PathBuf::from("C:\\Riot Games"));
+    let dir = root.join(folder);
+    Some(InstallInfo {
+        install_dir: dir.exists().then(|| dir.to_string_lossy().into_owned()),
+        process_exe: Some(exe.to_string()),
+    })
+}
+
+/// Install folder (below `Riot Games`) and game process of a Riot product.
+pub fn riot_product_info(product: &str) -> Option<(&'static str, &'static str)> {
+    match product.to_ascii_lowercase().as_str() {
+        "valorant" => Some(("VALORANT", "VALORANT-Win64-Shipping.exe")),
+        "league_of_legends" => Some(("League of Legends", "League of Legends.exe")),
+        _ => None,
+    }
 }
 
 fn dir_only(p: PathBuf) -> InstallInfo {
@@ -268,6 +293,25 @@ fn uninstall_lookup(_name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn riot_processes() {
+        let info = locate(
+            Platform::Riot,
+            Some("valorant"),
+            Some(r"C:\Riot Games\Riot Client\RiotClientServices.exe"),
+            "VALORANT",
+        );
+        assert_eq!(
+            info.process_exe.as_deref(),
+            Some("VALORANT-Win64-Shipping.exe")
+        );
+        assert_eq!(
+            riot_product_info("league_of_legends").map(|(_, exe)| exe),
+            Some("League of Legends.exe")
+        );
+        assert!(riot_product_info("unknown").is_none());
+    }
 
     #[test]
     fn parses_vdf() {

@@ -24,6 +24,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Version in sync
+        run: node scripts/version.mjs check
       - name: Frontend type check
         run: npm run check
       - name: Frontend build
