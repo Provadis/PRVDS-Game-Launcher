@@ -249,6 +249,12 @@
     height: 54px;
     flex-shrink: 0;
   }
+  .mini :global(.cover) {
+    box-shadow: none;
+  }
+  .mini :global(.title) {
+    display: none;
+  }
   .text {
     flex: 1;
     min-width: 0;
