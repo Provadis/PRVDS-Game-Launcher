@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use launcher_core::artwork::{ArtKind, ArtOption, ArtworkKeys};
+use launcher_core::boards::Board;
 use launcher_core::connectors::{self, CONNECTOR_PLATFORMS, InstalledGame};
 use launcher_core::desktop_icons::{self, IconPosition};
 use launcher_core::importer::EntryState;
@@ -724,6 +725,28 @@ pub fn save_view(
 #[tauri::command]
 pub fn delete_view(state: State<AppState>, id: i64) -> CmdResult<()> {
     state.lib.lock().unwrap().delete_view(id).map_err(err)
+}
+
+// ---- boards -------------------------------------------------------------------
+
+#[tauri::command]
+pub fn list_boards(state: State<AppState>) -> CmdResult<Vec<Board>> {
+    state.lib.lock().unwrap().boards().map_err(err)
+}
+
+#[tauri::command]
+pub fn create_board(state: State<AppState>, name: String) -> CmdResult<Board> {
+    state.lib.lock().unwrap().create_board(&name).map_err(err)
+}
+
+#[tauri::command]
+pub fn save_board(state: State<AppState>, board: Board) -> CmdResult<Board> {
+    state.lib.lock().unwrap().save_board(&board).map_err(err)
+}
+
+#[tauri::command]
+pub fn delete_board(state: State<AppState>, id: i64) -> CmdResult<()> {
+    state.lib.lock().unwrap().delete_board(id).map_err(err)
 }
 
 // ---- artwork & metadata -----------------------------------------------------

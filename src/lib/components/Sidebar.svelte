@@ -7,7 +7,9 @@
   type Dialog =
     | { kind: "newCollection" }
     | { kind: "renameCollection"; id: number; name: string }
-    | { kind: "renameView"; id: number; name: string };
+    | { kind: "renameView"; id: number; name: string }
+    | { kind: "newBoard" }
+    | { kind: "renameBoard"; id: number; name: string };
 
   let dialog = $state<Dialog | null>(null);
   let dropTarget = $state<number | null>(null);
@@ -30,6 +32,16 @@
       } else if (d.kind === "renameCollection") {
         await api.renameCollection(d.id, name);
         await app.reloadMeta();
+      } else if (d.kind === "newBoard") {
+        const b = await api.createBoard(name);
+        app.boards.push(b);
+        app.screen = { kind: "board", id: b.id };
+      } else if (d.kind === "renameBoard") {
+        const b = app.boards.find((x) => x.id === d.id);
+        if (b) {
+          const saved = await api.saveBoard({ ...$state.snapshot(b), name });
+          app.boards = app.boards.map((x) => (x.id === saved.id ? saved : x));
+        }
       } else {
         const v = app.views.find((x) => x.id === d.id);
         if (v) {
@@ -60,6 +72,17 @@
       await api.deleteView(id);
       app.views = app.views.filter((v) => v.id !== id);
       if (app.source.kind === "view" && app.source.id === id) app.selectSource({ kind: "all" });
+    } catch (e) {
+      app.error(e);
+    }
+  }
+
+  async function deleteBoard(id: number, name: string) {
+    if (!confirm(`Board „${name}“ löschen? Die Spiele bleiben in der Bibliothek.`)) return;
+    try {
+      await api.deleteBoard(id);
+      app.boards = app.boards.filter((b) => b.id !== id);
+      if (app.screen.kind === "board" && app.screen.id === id) app.selectSource({ kind: "all" });
     } catch (e) {
       app.error(e);
     }
@@ -128,6 +151,22 @@
   </div>
 
   <div class="group">
+    <div class="label">Boards</div>
+    {#each app.boards as b (b.id)}
+      <div class="row">
+        <button class="item" class:active={app.screen.kind === "board" && app.screen.id === b.id} onclick={() => (app.screen = { kind: "board", id: b.id })}>
+          <Icon name="board" size={16} /><span class="name">{b.name}</span>
+        </button>
+        <span class="tools">
+          <button onclick={() => (dialog = { kind: "renameBoard", id: b.id, name: b.name })} aria-label="Board {b.name} umbenennen"><Icon name="edit" size={14} /></button>
+          <button onclick={() => deleteBoard(b.id, b.name)} aria-label="Board {b.name} löschen"><Icon name="trash" size={14} /></button>
+        </span>
+      </div>
+    {/each}
+    <button class="item add" onclick={() => (dialog = { kind: "newBoard" })}><Icon name="plus" size={16} />Neues Board</button>
+  </div>
+
+  <div class="group">
     <div class="label">Ansichten</div>
     {#each app.views as v (v.id)}
       <div class="row">
@@ -157,10 +196,10 @@
 
 {#if dialog}
   <NameDialog
-    title={dialog.kind === "newCollection" ? "Neue Sammlung" : dialog.kind === "renameCollection" ? "Sammlung umbenennen" : "Ansicht umbenennen"}
+    title={{ newCollection: "Neue Sammlung", renameCollection: "Sammlung umbenennen", renameView: "Ansicht umbenennen", newBoard: "Neues Board", renameBoard: "Board umbenennen" }[dialog.kind]}
     label="Name"
     initial={"name" in dialog ? dialog.name : ""}
-    confirmLabel={dialog.kind === "newCollection" ? "Anlegen" : "Speichern"}
+    confirmLabel={dialog.kind === "newCollection" || dialog.kind === "newBoard" ? "Anlegen" : "Speichern"}
     onsubmit={submitDialog}
     onclose={() => (dialog = null)} />
 {/if}

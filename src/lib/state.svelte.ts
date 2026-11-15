@@ -1,9 +1,10 @@
 import { api } from "./api";
-import { emptyQuery, type Collection, type Game, type GameQuery, type Layout, type SavedView } from "./types";
+import { emptyQuery, type Board, type Collection, type Game, type GameQuery, type Layout, type SavedView } from "./types";
 
 export type Screen =
   | { kind: "library" }
   | { kind: "detail"; id: number }
+  | { kind: "board"; id: number }
   | { kind: "import"; from?: "desktop" | "launchers" }
   | { kind: "settings" };
 
@@ -28,6 +29,7 @@ class AppState {
   byId = $derived(new Map(this.games.map((g) => [g.id, g])));
   collections = $state<Collection[]>([]);
   views = $state<SavedView[]>([]);
+  boards = $state<Board[]>([]);
   tags = $state<string[]>([]);
   running = $state<number[]>([]);
   screen = $state<Screen>({ kind: "library" });
@@ -41,13 +43,15 @@ class AppState {
   visible = $derived(this.visibleIds.map((id) => this.byId.get(id)).filter((g): g is Game => !!g));
 
   async load() {
-    const [games, collections, views, tags, running] = await Promise.all([
+    const [games, collections, views, tags, running, boards] = await Promise.all([
       api.listGames(),
       api.listCollections(),
       api.listViews(),
       api.listTags(),
       api.runningGames(),
+      api.listBoards(),
     ]);
+    this.boards = boards;
     this.games = games;
     this.collections = collections;
     this.views = views;
@@ -70,6 +74,9 @@ class AppState {
 
   remove(id: number) {
     this.games = this.games.filter((g) => g.id !== id);
+    // Boards keep a gap where the game was.
+    for (const b of this.boards)
+      for (const f of b.fields) f.slots = f.slots.filter((s) => s.gameId !== id);
   }
 
   /** The query sent to the backend: user filters plus the selected source. */
