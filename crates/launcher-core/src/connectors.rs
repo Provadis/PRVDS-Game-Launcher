@@ -625,7 +625,8 @@ mod tests {
             root.join("steamapps/libraryfolders.vdf"),
             format!(
                 "\"libraryfolders\"\n{{\n\t\"0\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n",
-                lib2.display()
+                // Steam escapes backslashes in its VDF files.
+                lib2.display().to_string().replace('\\', "\\\\")
             ),
         )
         .unwrap();
