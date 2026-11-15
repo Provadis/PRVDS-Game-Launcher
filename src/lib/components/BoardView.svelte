@@ -3,6 +3,7 @@
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
   import { MAX_FIELD_COLS, MAX_FIELD_ROWS, type Board, type BoardField, type Game } from "$lib/types";
+  import { auraOf, boardAuraOn, fieldWash, rgba } from "$lib/aura";
   import Cover from "./Cover.svelte";
   import Icon from "./Icon.svelte";
 
@@ -28,6 +29,34 @@
   let saving = $state(false);
   let search = $state("");
   let dropSlot = $state<string | null>(null);
+
+  // Cover colours that tint the fields ("aura"), keyed by game and cover.
+  const auraOn = boardAuraOn();
+  let auras = $state<Record<string, [number, number, number]>>({});
+  const auraKey = (g: Game) => `${g.id}:${g.coverPath ?? ""}`;
+  $effect(() => {
+    if (!auraOn || !shown) return;
+    for (const f of shown.fields)
+      for (const s of f.slots) {
+        const g = app.byId.get(s.gameId);
+        if (!g) continue;
+        const k = auraKey(g);
+        if (untrack(() => auras[k])) continue;
+        auraOf(g).then((rgb) => (auras[k] = rgb));
+      }
+  });
+  function auraFor(g: Game) {
+    return auraOn ? auras[auraKey(g)] : undefined;
+  }
+  function washOf(f: BoardField) {
+    if (!auraOn) return null;
+    const colours = f.slots.flatMap((s) => {
+      const g = app.byId.get(s.gameId);
+      const rgb = g && auraFor(g);
+      return rgb ? [{ col: s.col, rgb }] : [];
+    });
+    return fieldWash(f.cols, colours);
+  }
   /** The field being moved or resized, and whether it sits on another one. */
   let dragging = $state<{ id: string; blocked: boolean } | null>(null);
 
@@ -241,7 +270,7 @@
             class="field"
             class:dragging={dragging?.id === f.id}
             class:blocked={dragging?.id === f.id && dragging.blocked}
-            style="left: {f.x * STEP}px; top: {f.y * STEP}px; width: {fieldW(f)}px; height: {fieldH(f)}px" aria-label={f.title || "Feld"}>
+            style="left: {f.x * STEP}px; top: {f.y * STEP}px; width: {fieldW(f)}px; height: {fieldH(f)}px{washOf(f) ? `; background-image: ${washOf(f)}` : ''}" aria-label={f.title || "Feld"}>
             <header>
               {#if editing}
                 <button class="handle" onpointerdown={(e) => startDrag(e, f, "move")} aria-label="Feld verschieben" title="Verschieben">
@@ -274,7 +303,8 @@
                     ondragleave={() => dropSlot === key && (dropSlot = null)}
                     ondrop={(e) => dropOnSlot(e, f, col, row)}>
                     {#if g}
-                      <div class="game" class:dim={!g.installed} draggable={editing} ondragstart={(e) => dragGame(e, g.id, key)} role="presentation">
+                      {@const aura = auraFor(g)}
+                      <div class="game" class:dim={!g.installed} class:glow={!!aura} style={aura ? `--aura: ${rgba(aura, 1)}` : undefined} draggable={editing} ondragstart={(e) => dragGame(e, g.id, key)} role="presentation">
                         {#if editing}
                           <Cover game={g} showBadge={false} radius={10} />
                           <button class="remove" onclick={() => setSlot(f, col, row, null)} aria-label="{g.name} aus dem Feld nehmen" title="Entfernen"><Icon name="close" size={14} /></button>
@@ -407,6 +437,23 @@
   .field {
     display: flex;
     flex-direction: column;
+    /* Keeps the cover glow above the field's own background. */
+    isolation: isolate;
+  }
+  .game.glow::before {
+    content: "";
+    position: absolute;
+    inset: 2px -8px -10px;
+    border-radius: 18px;
+    background: var(--aura);
+    filter: blur(24px);
+    opacity: 0.4;
+    z-index: -1;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .game.glow:hover::before {
+    opacity: 0.65;
   }
   .field.dragging {
     z-index: 5;
