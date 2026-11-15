@@ -24,8 +24,9 @@ Filtern, eigenen Ansichten und Spielzeitmessung.
   Deinstallierte Spiele bleiben mit ihrer Spielzeit in der Bibliothek.
 - **Game Space:** Cover-Grid oder Liste, Suche, Sortierung (Name, zuletzt gespielt, Spielzeit, hinzugefügt …),
   Filter nach Plattform, Tags und Favoriten.
-- **Boards:** eigene Ansichten zum Selbst-Anordnen. Ein Board hat Felder mit Titel, darin legst du Spiele per Ein Board lässt sich als Startseite festlegen (Haus-Symbol in der Seitenleiste).
+- **Boards:** eigene Ansichten zum Selbst-Anordnen. Ein Board hat Felder mit Titel, darin legst du Spiele per
   Drag & Drop auf Plätze, Lücken inklusive. Ein Spiel darf in mehreren Feldern und Boards stehen.
+  Ein Board lässt sich über das Haus-Symbol in der Seitenleiste als Startseite festlegen.
 - **Eigene Ansichten:** Sammlungen per Drag & Drop und gespeicherte Ansichten (Filter, Sortierung, Layout).
 - **Cover und Infos:** automatisch über Steam, optional SteamGridDB und IGDB. Eigene Bilder gehen per Drag & Drop.
 - **Spielzeit:** erkennt, wann ein Spiel läuft, auch wenn es über Steam, eine Verknüpfung oder schon vor der App gestartet wurde, und zeigt Sitzungen und Verlauf.
