@@ -102,10 +102,10 @@ pub fn steam_roots() -> Vec<PathBuf> {
     {
         use winreg::RegKey;
         use winreg::enums::HKEY_CURRENT_USER;
-        if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(r"Software\Valve\Steam") {
-            if let Ok(p) = key.get_value::<String, _>("SteamPath") {
-                roots.push(PathBuf::from(p.replace('/', "\\")));
-            }
+        if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(r"Software\Valve\Steam")
+            && let Ok(p) = key.get_value::<String, _>("SteamPath")
+        {
+            roots.push(PathBuf::from(p.replace('/', "\\")));
         }
         roots.push(PathBuf::from(r"C:\Program Files (x86)\Steam"));
     }
