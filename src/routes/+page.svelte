@@ -11,9 +11,24 @@
   import Toasts from "$lib/components/Toasts.svelte";
 
   onMount(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("layout") ?? "null");
+      if (saved?.mode) app.layout = saved;
+    } catch {
+      // Storage unavailable: keep defaults.
+    }
     app.load().catch((e) => app.error(e));
     const unlisten = [listen<Game>("game-updated", (e) => app.upsert(e.payload))];
     return () => unlisten.forEach((p) => p.then((f) => f()));
+  });
+
+  $effect(() => {
+    const json = JSON.stringify(app.layout);
+    try {
+      localStorage.setItem("layout", json);
+    } catch {
+      // ignore
+    }
   });
 
   // Re-run the query whenever filters, the source or the library change.
