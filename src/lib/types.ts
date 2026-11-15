@@ -247,6 +247,8 @@ export interface BoardField {
   cols: number;
   rows: number;
   slots: BoardSlot[];
+  /** Set: the field shows this collection's games by itself (no slots). */
+  collectionId?: number | null;
 }
 
 export interface Board {
@@ -255,5 +257,5 @@ export interface Board {
   fields: BoardField[];
 }
 
-export const MAX_FIELD_COLS = 12;
+export const MAX_FIELD_COLS = 60;
 export const MAX_FIELD_ROWS = 8;

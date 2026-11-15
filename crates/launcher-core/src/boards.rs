@@ -8,7 +8,8 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 /// Largest field, in cover slots.
-pub const MAX_FIELD_COLS: u32 = 12;
+/// Wider fields than the window scroll sideways.
+pub const MAX_FIELD_COLS: u32 = 60;
 pub const MAX_FIELD_ROWS: u32 = 8;
 /// How far a field may sit from the board origin, in grid steps.
 pub const MAX_BOARD_CELL: u32 = 400;
@@ -34,6 +35,9 @@ pub struct BoardField {
     pub cols: u32,
     pub rows: u32,
     pub slots: Vec<BoardSlot>,
+    /// Set: the field shows this collection's games by itself, in place of
+    /// hand-placed slots.
+    pub collection_id: Option<i64>,
 }
 
 impl Default for BoardField {
@@ -46,6 +50,7 @@ impl Default for BoardField {
             cols: 4,
             rows: 1,
             slots: Vec::new(),
+            collection_id: None,
         }
     }
 }
@@ -88,6 +93,9 @@ pub fn normalize_fields(
                     n += 1;
                 }
                 f.id = format!("f{n}");
+            }
+            if f.collection_id.is_some() {
+                f.slots.clear();
             }
             let mut taken = HashSet::new();
             f.slots.retain(|s| {
@@ -148,6 +156,20 @@ mod tests {
         );
         // The same game may sit in several fields.
         assert_eq!(out[1].slots, vec![slot(0, 0, 1)]);
+    }
+
+    #[test]
+    fn collection_fields_have_no_slots() {
+        let out = normalize_fields(
+            vec![BoardField {
+                collection_id: Some(3),
+                slots: vec![slot(0, 0, 1)],
+                ..Default::default()
+            }],
+            |_| true,
+        );
+        assert_eq!(out[0].collection_id, Some(3));
+        assert!(out[0].slots.is_empty());
     }
 
     #[test]
