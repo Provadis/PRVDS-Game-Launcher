@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
-  import type { Settings } from "$lib/types";
+  import type { Settings, UpdateChannel, UpdateCheck } from "$lib/types";
+  import { autoCheckUpdates, setAutoCheckUpdates, setUpdateChannel, updateChannel } from "$lib/updates";
   import Icon from "./Icon.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -11,6 +12,11 @@
   let igdbSecret = $state("");
   let saving = $state(false);
   let restoring = $state(false);
+  let channel = $state<UpdateChannel>(updateChannel());
+  let autoCheck = $state(autoCheckUpdates());
+  let checking = $state(false);
+  let installing = $state(false);
+  let check = $state<UpdateCheck | null>(null);
 
   onMount(async () => {
     try {
@@ -55,6 +61,35 @@
       }
     }
     app.toast("Fertig");
+  }
+
+  async function checkNow() {
+    checking = true;
+    try {
+      check = await api.checkUpdate(channel);
+    } catch (e) {
+      check = null;
+      app.error(`Update-Prüfung fehlgeschlagen: ${e}`);
+    } finally {
+      checking = false;
+    }
+  }
+
+  async function install() {
+    installing = true;
+    try {
+      // On Windows the installer closes the app and starts the new version.
+      await api.installUpdate();
+    } catch (e) {
+      app.error(`Update fehlgeschlagen: ${e}`);
+      installing = false;
+    }
+  }
+
+  function changeChannel(c: UpdateChannel) {
+    channel = c;
+    setUpdateChannel(c);
+    check = null;
   }
 
   async function restoreAll() {
@@ -102,6 +137,35 @@
       <button class="btn" type="button" onclick={refetchMissing}><Icon name="refresh" size={16} />Fehlende Cover und Infos laden</button>
     </div>
   </form>
+
+  <section class="panel">
+    <h2>Updates</h2>
+    <p class="muted">
+      „Stabil“ bekommt nur fertige Versionen. „Dev“ bekommt zusätzlich jeden Entwicklungsstand, kann aber Fehler haben.
+      Updates sind signiert, die App installiert nur Pakete von uns.
+    </p>
+    <div class="channels" role="radiogroup" aria-label="Update-Kanal">
+      <button class="chip" class:active={channel === "stable"} role="radio" aria-checked={channel === "stable"} onclick={() => changeChannel("stable")}>Stabil</button>
+      <button class="chip" class:active={channel === "dev"} role="radio" aria-checked={channel === "dev"} onclick={() => changeChannel("dev")}>Dev</button>
+    </div>
+    <label class="check">
+      <input type="checkbox" bind:checked={autoCheck} onchange={() => setAutoCheckUpdates(autoCheck)} />
+      <span>Beim Start nach Updates suchen</span>
+    </label>
+    <div class="row">
+      <button class="btn" onclick={checkNow} disabled={checking || installing}><Icon name="refresh" size={16} />{checking ? "Sucht …" : "Jetzt nach Updates suchen"}</button>
+      {#if check?.update}
+        <button class="btn primary" onclick={install} disabled={installing}>{installing ? "Wird installiert …" : `Version ${check.update.version} installieren`}</button>
+      {/if}
+    </div>
+    {#if check && !check.enabled}
+      <p class="muted">Diese Version wurde ohne Update-Schlüssel gebaut (z. B. lokal). Updates sind hier ausgeschaltet.</p>
+    {:else if check && !check.update}
+      <p class="muted">Du bist auf dem neuesten Stand{settings ? ` (${settings.version})` : ""}.</p>
+    {:else if check?.update?.notes}
+      <p class="notes">{check.update.notes}</p>
+    {/if}
+  </section>
 
   <section class="panel">
     <h2>Speicherort</h2>
@@ -186,6 +250,21 @@
     grid-template-columns: max-content 1fr;
     gap: 10px 24px;
     font-size: 14px;
+  }
+  .channels {
+    display: flex;
+    gap: 8px;
+  }
+  .check {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+  }
+  .notes {
+    white-space: pre-line;
+    font-size: 14px;
+    color: var(--text-2);
   }
   .about {
     font-size: 13px;

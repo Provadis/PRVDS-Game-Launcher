@@ -9,3 +9,8 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 /target
+
+# Never commit keys
+*.key
+*.key.pub
+dev-secrets.json

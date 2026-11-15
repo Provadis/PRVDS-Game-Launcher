@@ -12,6 +12,8 @@ import type {
   SavedView,
   Session,
   Settings,
+  UpdateChannel,
+  UpdateCheck,
   ViewDefinition,
 } from "./types";
 
@@ -46,5 +48,7 @@ export const api = {
   refreshMetadata: (id: number) => invoke<Game>("refresh_metadata", { id }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveKeys: (keys: ArtworkKeys) => invoke<void>("save_keys", { keys }),
+  checkUpdate: (channel: UpdateChannel) => invoke<UpdateCheck>("check_update", { channel }),
+  installUpdate: () => invoke<void>("install_update"),
   openDataFolder: () => invoke<void>("open_data_folder"),
 };
