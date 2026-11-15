@@ -15,7 +15,13 @@
 
 <ul class="grid" style="--size: {size}px">
   {#each games as g (g.id)}
-    <li class="card">
+    <li
+      class="card"
+      draggable="true"
+      ondragstart={(e) => {
+        e.dataTransfer?.setData("application/x-game-id", String(g.id));
+        e.dataTransfer?.setData("text/plain", g.name);
+      }}>
       <button class="cover-btn" onclick={() => (app.screen = { kind: "detail", id: g.id })} aria-label="{g.name} öffnen">
         <Cover game={g} />
       </button>

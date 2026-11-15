@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { api } from "$lib/api";
   import { app } from "$lib/state.svelte";
+  import NameDialog from "./NameDialog.svelte";
   import GameGrid from "./GameGrid.svelte";
   import GameList from "./GameList.svelte";
   import HeroBanner from "./HeroBanner.svelte";
@@ -13,6 +15,24 @@
       .filter((g) => g.lastPlayed && !g.hidden)
       .sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0))[0] ?? null;
   });
+
+  let saving = $state(false);
+  let overwrite = $state(true);
+  let currentView = $derived(app.source.kind === "view" ? app.views.find((v) => v.id === (app.source as { id: number }).id) : undefined);
+
+  async function saveView(name: string) {
+    saving = false;
+    try {
+      const definition = { query: app.effectiveQuery(), layout: $state.snapshot(app.layout) };
+      const id = currentView && overwrite ? currentView.id : null;
+      const v = await api.saveView(id, name, definition);
+      app.views = id ? app.views.map((x) => (x.id === v.id ? v : x)) : [...app.views, v];
+      app.source = { kind: "view", id: v.id };
+      app.toast(`Ansicht „${v.name}“ gespeichert`);
+    } catch (e) {
+      app.error(e);
+    }
+  }
 
   let title = $derived.by(() => {
     switch (app.source.kind) {
@@ -49,7 +69,7 @@
     </section>
   {:else}
     {#if continueGame}<HeroBanner game={continueGame} />{/if}
-    <Toolbar {title} count={app.visible.length} />
+    <Toolbar {title} count={app.visible.length} onSaveView={() => { overwrite = true; saving = true; }} />
     {#if app.visible.length}
       {#if app.layout.mode === "list"}
         <GameList games={app.visible} />
@@ -62,6 +82,25 @@
   {/if}
 </main>
 
+{#if saving}
+  <NameDialog
+    title="Ansicht speichern"
+    label="Name der Ansicht"
+    initial={currentView?.name ?? ""}
+    onsubmit={saveView}
+    onclose={() => (saving = false)}>
+    {#snippet extra()}
+      {#if currentView}
+        <label class="overwrite">
+          <input type="checkbox" bind:checked={overwrite} />„{currentView.name}“ überschreiben
+        </label>
+      {:else}
+        <p class="muted hint">Speichert Filter, Sortierung und Layout. Die Ansicht erscheint links in der Seitenleiste.</p>
+      {/if}
+    {/snippet}
+  </NameDialog>
+{/if}
+
 <style>
   main {
     flex: 1;
@@ -71,6 +110,22 @@
     display: flex;
     flex-direction: column;
     gap: 28px;
+  }
+  .overwrite {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+  }
+  .overwrite input {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+  }
+  .hint {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
   }
   .welcome {
     margin: auto;
