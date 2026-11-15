@@ -28,7 +28,7 @@ Filtern, eigenen Ansichten und Spielzeitmessung.
   Drag & Drop auf Plätze, Lücken inklusive. Ein Spiel darf in mehreren Feldern und Boards stehen.
 - **Eigene Ansichten:** Sammlungen per Drag & Drop und gespeicherte Ansichten (Filter, Sortierung, Layout).
 - **Cover und Infos:** automatisch über Steam, optional SteamGridDB und IGDB. Eigene Bilder gehen per Drag & Drop.
-- **Spielzeit:** erkennt, wann ein Spiel läuft, und zeigt Sitzungen und Verlauf.
+- **Spielzeit:** erkennt, wann ein Spiel läuft, auch wenn es über Steam, eine Verknüpfung oder schon vor der App gestartet wurde, und zeigt Sitzungen und Verlauf.
 - **Updates:** sucht auf Wunsch beim Start nach neuen Versionen (Kanäle „Stabil“ und „Dev“). Die Updates sind signiert.
 
 | Spiel-Detail | Import-Assistent |
