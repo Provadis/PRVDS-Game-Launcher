@@ -19,6 +19,9 @@ Filtern, eigenen Ansichten und Spielzeitmessung.
 - **Desktop aufräumen:** liest die Verknüpfungen (`.lnk`, `.url`) vom eigenen und vom öffentlichen Desktop und
   erkennt Spiele von Steam, Epic, Ubisoft Connect, EA App, Battle.net und Riot. Ausgewählte Verknüpfungen werden in
   den App-Ordner verschoben. Jeder Schritt lässt sich rückgängig machen, auch an die alte Position auf dem Desktop.
+- **Launcher einlesen:** findet alle installierten Spiele in Steam, Epic, Ubisoft Connect, EA App, Battle.net
+  und Riot, ganz ohne Desktop-Verknüpfung. Beim Start prüft die App, was neu dazugekommen oder deinstalliert ist.
+  Deinstallierte Spiele bleiben mit ihrer Spielzeit in der Bibliothek.
 - **Game Space:** Cover-Grid oder Liste, Suche, Sortierung (Name, zuletzt gespielt, Spielzeit, hinzugefügt …),
   Filter nach Plattform, Tags und Favoriten.
 - **Eigene Ansichten:** Sammlungen per Drag & Drop und gespeicherte Ansichten (Filter, Sortierung, Layout).
@@ -44,6 +47,7 @@ Wer neue Funktionen früher haben möchte, findet den neuesten Entwicklungsstand
 
 - Alle Daten bleiben lokal unter `%APPDATA%\PRVDS\GameLauncher`: Datenbank, verschobene Verknüpfungen,
   Import-Journal und Cover.
+- Die Launcher werden nur gelesen (Installationsdaten, Registry). Die App ändert dort nichts und meldet sich nirgends an.
 - API-Keys für SteamGridDB und IGDB landen in der Windows-Anmeldeinformationsverwaltung, nie in Dateien.
 - Die App ruft nur diese Dienste auf: Steam (Cover und Infos), SteamGridDB und IGDB (nur mit eigenem Key)
   sowie GitHub Releases (Update-Prüfung, lässt sich abschalten). Es gibt keine Telemetrie.
