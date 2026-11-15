@@ -52,6 +52,15 @@
           `${report.imported.length} Spiele in deinen Game Space verschoben. Cover werden geladen …`,
         );
       }
+      if (report.keptOnDesktop.length) {
+        const n = report.keptOnDesktop.length;
+        app.toast(
+          (n === 1
+            ? `„${report.keptOnDesktop[0]}“ liegt auf dem öffentlichen Desktop. Die Verknüpfung wurde kopiert und bleibt dort`
+            : `${n} Spiele liegen auf dem öffentlichen Desktop. Die Verknüpfungen wurden kopiert und bleiben dort`) +
+            ", denn zum Entfernen braucht Windows Admin-Rechte.",
+        );
+      }
       app.selectSource({ kind: "all" });
     } catch (e) {
       app.error(e);

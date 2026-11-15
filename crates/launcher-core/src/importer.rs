@@ -39,6 +39,10 @@ pub struct JournalEntry {
     /// Where the icon sat on the desktop before the import, if known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub desktop_position: Option<IconPosition>,
+    /// The original could not be deleted (e.g. on the public desktop, which
+    /// needs admin rights), so the library holds a copy and it stays put.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub original_kept: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -151,6 +155,7 @@ impl Importer {
             moved_at: now(),
             state: EntryState::Pending,
             desktop_position,
+            original_kept: false,
         };
         let mut journal = self.load()?;
         journal.entries.push(entry.clone());
@@ -160,6 +165,21 @@ impl Importer {
         }
 
         if let Err(e) = fs::remove_file(src) {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                // No right to delete it (public desktop): keep the copy and
+                // leave the original where it is.
+                let mut journal = self.load()?;
+                let stored = journal
+                    .entries
+                    .iter_mut()
+                    .find(|x| x.id == entry.id)
+                    .ok_or_else(|| Error::NotFound(format!("Journal-Eintrag {}", entry.id)))?;
+                stored.original_kept = true;
+                stored.state = EntryState::Moved;
+                let stored = stored.clone();
+                self.save(&journal)?;
+                return Ok(stored);
+            }
             // Original could not be removed (e.g. locked): roll back.
             let _ = fs::remove_file(&dest);
             journal.entries.retain(|x| x.id != entry.id);
@@ -180,6 +200,15 @@ impl Importer {
             return Ok(PathBuf::from(entry.original_path));
         }
         let original = PathBuf::from(&entry.original_path);
+        if entry.original_kept && original.exists() {
+            // The original never left: just drop our copy.
+            let stored = PathBuf::from(&entry.stored_path);
+            if stored.exists() {
+                fs::remove_file(&stored).ctx(&stored)?;
+            }
+            self.update_state(id, EntryState::Restored)?;
+            return Ok(original);
+        }
         let dir = original
             .parent()
             .map(Path::to_path_buf)
@@ -347,6 +376,7 @@ mod tests {
                     moved_at: 0,
                     state: EntryState::Pending,
                     desktop_position: None,
+                    original_kept: false,
                 },
                 JournalEntry {
                     id: "b".into(),
@@ -355,6 +385,7 @@ mod tests {
                     moved_at: 0,
                     state: EntryState::Pending,
                     desktop_position: None,
+                    original_kept: false,
                 },
             ],
         };
@@ -385,6 +416,48 @@ mod tests {
         let json = r#"{"id":"a","originalPath":"C:/a.lnk","storedPath":"D:/a.lnk","movedAt":1,"state":"moved"}"#;
         let e: JournalEntry = serde_json::from_str(json).unwrap();
         assert_eq!(e.desktop_position, None);
+    }
+
+    #[test]
+    fn restoring_a_kept_original_only_drops_the_copy() {
+        let (_tmp, desktop, imp) = setup();
+        let src = desktop.join("Valorant.lnk");
+        fs::write(&src, b"v").unwrap();
+        let e = imp.move_in(&src).unwrap();
+        // Simulate an import from the public desktop: the original stayed.
+        fs::write(&src, b"v").unwrap();
+        let mut journal = imp.load().unwrap();
+        journal.entries[0].original_kept = true;
+        imp.save(&journal).unwrap();
+
+        let restored = imp.restore(&e.id).unwrap();
+        assert_eq!(restored, src);
+        assert!(src.exists());
+        assert!(!Path::new(&e.stored_path).exists());
+        assert!(imp.shortcuts_dir().read_dir().unwrap().next().is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keeps_original_without_delete_rights() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_tmp, desktop, imp) = setup();
+        let public = desktop.join("public");
+        fs::create_dir(&public).unwrap();
+        let src = public.join("Diablo IV.lnk");
+        fs::write(&src, b"d4").unwrap();
+        fs::set_permissions(&public, fs::Permissions::from_mode(0o555)).unwrap();
+        // Superusers ignore the permission bits; nothing to test then.
+        let enforced = fs::write(public.join("probe"), b"").is_err();
+        let result = imp.move_in(&src);
+        fs::set_permissions(&public, fs::Permissions::from_mode(0o755)).unwrap();
+        if !enforced {
+            return;
+        }
+        let e = result.unwrap();
+        assert!(e.original_kept);
+        assert_eq!(e.state, EntryState::Moved);
+        assert!(src.exists() && Path::new(&e.stored_path).exists());
     }
 
     #[test]

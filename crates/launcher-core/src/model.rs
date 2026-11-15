@@ -9,16 +9,18 @@ pub enum Platform {
     Ubisoft,
     Ea,
     Battlenet,
+    Riot,
     Other,
 }
 
 impl Platform {
-    pub const ALL: [Platform; 6] = [
+    pub const ALL: [Platform; 7] = [
         Platform::Steam,
         Platform::Epic,
         Platform::Ubisoft,
         Platform::Ea,
         Platform::Battlenet,
+        Platform::Riot,
         Platform::Other,
     ];
 
@@ -29,6 +31,7 @@ impl Platform {
             Platform::Ubisoft => "ubisoft",
             Platform::Ea => "ea",
             Platform::Battlenet => "battlenet",
+            Platform::Riot => "riot",
             Platform::Other => "other",
         }
     }
@@ -40,6 +43,7 @@ impl Platform {
             "ubisoft" => Platform::Ubisoft,
             "ea" => Platform::Ea,
             "battlenet" => Platform::Battlenet,
+            "riot" => Platform::Riot,
             _ => Platform::Other,
         }
     }
@@ -51,6 +55,7 @@ impl Platform {
             Platform::Ubisoft => "Ubisoft",
             Platform::Ea => "EA",
             Platform::Battlenet => "Battle.net",
+            Platform::Riot => "Riot",
             Platform::Other => "Sonstige",
         }
     }
