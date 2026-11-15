@@ -27,7 +27,7 @@
           <button class="link" onclick={(e) => { e.stopPropagation(); app.screen = { kind: "detail", id: g.id }; }}>
             {#if g.favorite}<span class="fav" aria-label="Favorit">★</span>{/if}{g.name}
           </button>
-          {#if g.tags.length}<span class="tags">{g.tags.join(" · ")}</span>{/if}
+          {#if !g.installed}<span class="tags">Nicht installiert</span>{:else if g.tags.length}<span class="tags">{g.tags.join(" · ")}</span>{/if}
         </td>
         <td>{platformLabel(g.platform)}</td>
         <td class="muted">{g.genre ?? "–"}</td>

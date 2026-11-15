@@ -4,7 +4,7 @@ import { emptyQuery, type Collection, type Game, type GameQuery, type Layout, ty
 export type Screen =
   | { kind: "library" }
   | { kind: "detail"; id: number }
-  | { kind: "import" }
+  | { kind: "import"; from?: "desktop" | "launchers" }
   | { kind: "settings" };
 
 export type Source =

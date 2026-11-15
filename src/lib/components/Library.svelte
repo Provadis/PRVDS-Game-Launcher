@@ -60,11 +60,14 @@
       <span class="logo"><Icon name="gamepad" size={40} /></span>
       <h1>Willkommen in deinem Game Space</h1>
       <p class="muted">
-        Lies deinen Desktop ein, wähle deine Spiele aus und räume die Verknüpfungen in die Bibliothek. Du kannst
+        Lies deinen Desktop oder deine Launcher ein, wähle deine Spiele aus und räume die Verknüpfungen in die Bibliothek. Du kannst
         jedes Spiel jederzeit wieder zurück auf den Desktop legen.
       </p>
       <button class="btn big primary" onclick={() => (app.screen = { kind: "import" })}>
         <Icon name="download" />Desktop einlesen
+      </button>
+      <button class="btn big" onclick={() => (app.screen = { kind: "import", from: "launchers" })}>
+        <Icon name="layers" />Aus Launchern einlesen
       </button>
     </section>
   {:else}

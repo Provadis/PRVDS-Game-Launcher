@@ -489,6 +489,21 @@ pub fn undo_import(state: State<AppState>, id: i64) -> CmdResult<String> {
     Ok(restored.to_string_lossy().into_owned())
 }
 
+/// Removes a game that has no shortcut to put back (launcher games). Play
+/// history goes with it; the game itself stays installed.
+#[tauri::command]
+pub fn remove_game(state: State<AppState>, id: i64) -> CmdResult<()> {
+    let lib = state.lib.lock().unwrap();
+    let game = lib.game(id).map_err(err)?;
+    if game.journal_id.is_some() {
+        return Err("Dieses Spiel kommt vom Desktop. Leg es zurück auf den Desktop.".into());
+    }
+    lib.delete_game(id).map_err(err)?;
+    remove_art_file(&state, game.cover_path.as_deref());
+    remove_art_file(&state, game.hero_path.as_deref());
+    Ok(())
+}
+
 /// Puts a game's shortcut back and removes the game. Returns the restored
 /// path and, if known, the icon's old desktop position for that file.
 fn restore_game(state: &AppState, id: i64) -> CmdResult<(PathBuf, Option<(String, IconPosition)>)> {

@@ -31,6 +31,7 @@ pub fn run() {
             commands::running_games,
             commands::sessions,
             commands::undo_import,
+            commands::remove_game,
             commands::restore_all,
             commands::list_tags,
             commands::add_tag,

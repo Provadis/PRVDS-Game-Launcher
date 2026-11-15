@@ -8,6 +8,7 @@
 
   function meta(g: Game) {
     if (app.running.includes(g.id)) return "Läuft gerade";
+    if (!g.installed) return "Nicht installiert";
     if (!g.lastPlayed) return "Noch nicht gespielt";
     return `${formatPlaytime(g.playtimeSecs)} · ${relativeDay(g.lastPlayed)}`;
   }
@@ -17,6 +18,7 @@
   {#each games as g (g.id)}
     <li
       class="card"
+      class:uninstalled={!g.installed}
       draggable="true"
       ondragstart={(e) => {
         e.dataTransfer?.setData("application/x-game-id", String(g.id));
@@ -107,6 +109,10 @@
   .meta {
     font-size: 13px;
     color: var(--text-muted);
+  }
+  .uninstalled .cover-btn {
+    opacity: 0.45;
+    filter: grayscale(0.8);
   }
   .meta.running {
     color: var(--accent);

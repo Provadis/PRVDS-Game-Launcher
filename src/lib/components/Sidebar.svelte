@@ -147,7 +147,7 @@
 
   <div class="bottom">
     <button class="btn import" onclick={() => (app.screen = { kind: "import" })}>
-      <Icon name="download" />Vom Desktop importieren
+      <Icon name="download" />Spiele importieren
     </button>
     <button class="item" class:active={app.screen.kind === "settings"} onclick={() => (app.screen = { kind: "settings" })}>
       <Icon name="settings" />Einstellungen

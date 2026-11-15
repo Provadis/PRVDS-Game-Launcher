@@ -14,6 +14,8 @@ export function platformLabel(p: Platform): string {
   return PLATFORMS.find((x) => x.id === p)?.label ?? p;
 }
 
+export type GameSource = "desktop" | "connector";
+
 export interface Game {
   id: number;
   name: string;
@@ -23,6 +25,11 @@ export interface Game {
   originalPath: string | null;
   journalId: string | null;
   launchTarget: string | null;
+  launchArgs: string | null;
+  /** "desktop": imported shortcut, "connector": read from a launcher. */
+  source: GameSource;
+  /** False once a launcher sync no longer finds the game. */
+  installed: boolean;
   installDir: string | null;
   processExe: string | null;
   coverPath: string | null;
@@ -196,4 +203,30 @@ export interface UpdateCheck {
   /** False for builds without an update key (local builds). */
   enabled: boolean;
   update: UpdateInfo | null;
+}
+
+/** Launchers the connectors can read. */
+export const CONNECTOR_PLATFORMS: Platform[] = ["steam", "epic", "ubisoft", "ea", "battlenet", "riot"];
+
+export type Launch = { kind: "url"; url: string } | { kind: "exe"; path: string; args: string };
+
+export interface InstalledGame {
+  platform: Platform;
+  platformId: string;
+  name: string;
+  installDir: string | null;
+  launch: Launch;
+  processExe: string | null;
+}
+
+export interface LauncherCandidate {
+  game: InstalledGame;
+  /** Library game it matches, if any. */
+  existingId: number | null;
+}
+
+export interface SyncReport {
+  newGames: number;
+  uninstalled: Game[];
+  reinstalled: Game[];
 }

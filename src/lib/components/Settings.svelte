@@ -4,6 +4,7 @@
   import { app } from "$lib/state.svelte";
   import type { Settings, UpdateChannel, UpdateCheck } from "$lib/types";
   import { autoCheckUpdates, setAutoCheckUpdates, setUpdateChannel, updateChannel } from "$lib/updates";
+  import { setSyncLaunchersOnStart, syncLaunchersOnStart } from "$lib/launchers";
   import Icon from "./Icon.svelte";
 
   let settings = $state<Settings | null>(null);
@@ -106,6 +107,7 @@
       restoring = false;
     }
   }
+  let syncLaunchers = $state(syncLaunchersOnStart());
 </script>
 
 <main class="scroll">
@@ -165,6 +167,21 @@
     {:else if check?.update?.notes}
       <p class="notes">{check.update.notes}</p>
     {/if}
+  </section>
+
+  <section class="panel">
+    <h2>Launcher</h2>
+    <p class="muted">
+      Liest installierte Spiele aus Steam, Epic, Ubisoft Connect, EA App, Battle.net und Riot. Deinstallierte Spiele
+      bleiben mit Spielzeit in der Bibliothek und werden als „Nicht installiert“ markiert.
+    </p>
+    <label class="check">
+      <input type="checkbox" bind:checked={syncLaunchers} onchange={() => setSyncLaunchersOnStart(syncLaunchers)} />
+      <span>Beim Start nach neuen und deinstallierten Spielen suchen</span>
+    </label>
+    <div class="row">
+      <button class="btn" onclick={() => (app.screen = { kind: "import", from: "launchers" })}><Icon name="layers" size={16} />Spiele aus Launchern einlesen</button>
+    </div>
   </section>
 
   <section class="panel">
