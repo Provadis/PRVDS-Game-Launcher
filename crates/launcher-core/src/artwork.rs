@@ -1,13 +1,18 @@
 //! Cover art and metadata.
 //!
-//! Sources, in this order:
+//! Official store art comes first, so a game looks the way its store shows it:
 //! 1. Steam CDN and Steam store API for Steam games (no key needed),
-//! 2. SteamGridDB (API key) for covers and hero images of every game,
-//! 3. IGDB (Twitch client id + secret) for metadata and as a further cover source.
+//! 2. the Epic launcher's own catalog cache for Epic games (local, no key),
+//! 3. Steam again for games from other launchers that are also on Steam,
+//!    found by exact name (no key),
+//! 4. IGDB (Twitch client id + secret): official box art, plus metadata,
+//! 5. SteamGridDB (API key): community art for everything else.
 
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, RwLock};
 use std::time::Duration;
+use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,6 +57,15 @@ pub struct ArtClient {
     http: reqwest::blocking::Client,
     keys: RwLock<ArtworkKeys>,
     igdb_token: Mutex<Option<(String, i64)>>,
+    /// Epic catalog images by catalog item id, with the cache file's mtime.
+    epic_catalog: Mutex<Option<(SystemTime, EpicCatalog)>>,
+}
+
+/// Key images per catalog item id, and per namespace as a fallback.
+#[derive(Debug, Default, Clone)]
+pub struct EpicCatalog {
+    by_id: HashMap<String, Vec<(String, String)>>,
+    by_namespace: HashMap<String, Vec<(String, String)>>,
 }
 
 const SGDB: &str = "https://www.steamgriddb.com/api/v2";
@@ -67,6 +81,7 @@ impl ArtClient {
             http,
             keys: RwLock::new(keys),
             igdb_token: Mutex::new(None),
+            epic_catalog: Mutex::new(None),
         }
     }
 
@@ -85,51 +100,122 @@ impl ArtClient {
             .flatten()
     }
 
+    /// Official store art: Steam for Steam games, the Epic catalog for Epic
+    /// games, and Steam by exact name for games from other launchers.
+    /// `all` = false stops at the first hit.
+    fn official(&self, game: &Game, kind: ArtKind, all: bool) -> Vec<ArtOption> {
+        let mut out = Vec::new();
+        let steam = |appid: &str, out: &mut Vec<ArtOption>| {
+            if let Some(url) = self
+                .steam_urls(appid, kind)
+                .into_iter()
+                .find(|u| self.exists(u))
+            {
+                out.push(ArtOption {
+                    thumb: url.clone(),
+                    url,
+                    source: "Steam".into(),
+                });
+            }
+        };
+        if let Some(appid) = Self::steam_id(game) {
+            steam(appid, &mut out);
+            return out;
+        }
+        if game.platform == Platform::Epic {
+            out.extend(self.epic_art(game, kind));
+            if !all && !out.is_empty() {
+                out.truncate(1);
+                return out;
+            }
+        }
+        if let Some(appid) = self.steam_appid_by_name(&game.name) {
+            steam(&appid, &mut out);
+        }
+        out
+    }
+
     /// All cover or hero options for the picker, best first.
     pub fn options(&self, game: &Game, kind: ArtKind) -> Vec<ArtOption> {
-        let mut out = Vec::new();
-        if let Some(appid) = Self::steam_id(game) {
-            out.extend(
-                self.steam_urls(appid, kind)
-                    .into_iter()
-                    .filter(|u| self.exists(u))
-                    .take(1)
-                    .map(|url| ArtOption {
-                        thumb: url.clone(),
-                        url,
-                        source: "Steam".into(),
-                    }),
-            );
-        }
-        out.extend(self.sgdb_options(game, kind).unwrap_or_default());
+        let mut out = self.official(game, kind, true);
         out.extend(self.igdb_art(game, kind).unwrap_or_default());
-        out.dedup_by(|a, b| a.url == b.url);
+        out.extend(self.sgdb_options(game, kind).unwrap_or_default());
+        let mut seen = std::collections::HashSet::new();
+        out.retain(|o| seen.insert(o.url.clone()));
         out
     }
 
     pub fn best(&self, game: &Game, kind: ArtKind) -> Option<ArtOption> {
-        if let Some(appid) = Self::steam_id(game)
-            && let Some(url) = self
-                .steam_urls(appid, kind)
-                .into_iter()
-                .find(|u| self.exists(u))
-        {
-            return Some(ArtOption {
-                thumb: url.clone(),
-                url,
-                source: "Steam".into(),
-            });
-        }
-        if let Some(o) = self
-            .sgdb_options(game, kind)
-            .ok()
-            .and_then(|v| v.into_iter().next())
-        {
+        if let Some(o) = self.official(game, kind, false).into_iter().next() {
             return Some(o);
         }
-        self.igdb_art(game, kind)
-            .ok()
-            .and_then(|v| v.into_iter().next())
+        // IGDB has the publisher's box art; its hero images are often
+        // screenshots, so for heroes SteamGridDB goes first.
+        let igdb = || {
+            self.igdb_art(game, kind)
+                .ok()
+                .and_then(|v| v.into_iter().next())
+        };
+        let sgdb = || {
+            self.sgdb_options(game, kind)
+                .ok()
+                .and_then(|v| v.into_iter().next())
+        };
+        match kind {
+            ArtKind::Cover => igdb().or_else(sgdb),
+            ArtKind::Hero => sgdb().or_else(igdb),
+        }
+    }
+
+    // ---- Epic -----------------------------------------------------------------
+
+    fn epic_art(&self, game: &Game, kind: ArtKind) -> Vec<ArtOption> {
+        let Some(id) = game.platform_id.as_deref() else {
+            return vec![];
+        };
+        let Some(catalog) = self.epic_catalog() else {
+            return vec![];
+        };
+        epic_images(&catalog, id, kind)
+            .into_iter()
+            .map(|url| ArtOption {
+                thumb: url.clone(),
+                url,
+                source: "Epic".into(),
+            })
+            .collect()
+    }
+
+    /// The Epic launcher's catalog cache, re-read when the file changes.
+    fn epic_catalog(&self) -> Option<EpicCatalog> {
+        let path = epic_catalog_path()?;
+        let mtime = std::fs::metadata(&path).and_then(|m| m.modified()).ok()?;
+        let mut guard = self.epic_catalog.lock().unwrap();
+        if let Some((t, c)) = guard.as_ref()
+            && *t == mtime
+        {
+            return Some(c.clone());
+        }
+        let catalog = parse_epic_catalog(&std::fs::read(&path).ok()?)?;
+        *guard = Some((mtime, catalog.clone()));
+        Some(catalog)
+    }
+
+    // ---- Steam ------------------------------------------------------------------
+
+    /// The Steam app with exactly this name, if the game is also on Steam.
+    fn steam_appid_by_name(&self, name: &str) -> Option<String> {
+        let v: Value = self
+            .http
+            .get("https://store.steampowered.com/api/storesearch/")
+            .query(&[("term", name), ("l", "german"), ("cc", "DE")])
+            .send()
+            .ok()?
+            .error_for_status()
+            .ok()?
+            .json()
+            .ok()?;
+        pick_steam_search(&v, name)
     }
 
     /// Candidate Steam image URLs, best first: the real asset paths from the
@@ -290,7 +376,10 @@ impl ArtClient {
     // ---- Metadata -------------------------------------------------------------
 
     pub fn metadata(&self, game: &Game) -> Option<Metadata> {
-        if let Some(appid) = Self::steam_id(game) {
+        let appid = Self::steam_id(game)
+            .map(str::to_string)
+            .or_else(|| self.steam_appid_by_name(&game.name));
+        if let Some(appid) = appid.as_deref() {
             let url =
                 format!("https://store.steampowered.com/api/appdetails?appids={appid}&l=german");
             if let Ok(v) = self.http.get(url).send().and_then(|r| r.json::<Value>())
@@ -323,6 +412,93 @@ impl ArtClient {
         std::fs::write(dest, &bytes).ctx(dest)?;
         Ok(())
     }
+}
+
+fn epic_catalog_path() -> Option<PathBuf> {
+    let base = std::env::var_os("ProgramData").map(PathBuf::from)?;
+    Some(base.join(r"Epic\EpicGamesLauncher\Data\Catalog\catcache.bin"))
+}
+
+/// Reads `catcache.bin`: base64 of a JSON array of catalog items, each with
+/// `id`, `namespace` and `keyImages: [{type, url}]`.
+pub fn parse_epic_catalog(bytes: &[u8]) -> Option<EpicCatalog> {
+    use base64::Engine;
+    let text: Vec<u8> = bytes
+        .iter()
+        .copied()
+        .filter(|b| !b.is_ascii_whitespace())
+        .collect();
+    let json = base64::engine::general_purpose::STANDARD
+        .decode(&text)
+        .ok()
+        .unwrap_or_else(|| bytes.to_vec());
+    let items: Vec<Value> = serde_json::from_slice(&json).ok()?;
+    let mut catalog = EpicCatalog::default();
+    for item in items {
+        let images: Vec<(String, String)> = item["keyImages"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|i| {
+                        Some((
+                            i["type"].as_str()?.to_string(),
+                            i["url"].as_str()?.to_string(),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if images.is_empty() {
+            continue;
+        }
+        if let Some(ns) = item["namespace"].as_str() {
+            catalog
+                .by_namespace
+                .entry(ns.to_string())
+                .or_insert_with(|| images.clone());
+        }
+        if let Some(id) = item["id"].as_str() {
+            catalog.by_id.insert(id.to_string(), images);
+        }
+    }
+    Some(catalog)
+}
+
+/// Image URLs for an Epic game (`namespace:catalogItemId:appName`), best first.
+pub fn epic_images(catalog: &EpicCatalog, platform_id: &str, kind: ArtKind) -> Vec<String> {
+    let mut parts = platform_id.split(':');
+    let (ns, id) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+    let Some(images) = catalog
+        .by_id
+        .get(id)
+        .or_else(|| catalog.by_namespace.get(ns))
+    else {
+        return vec![];
+    };
+    let wanted: &[&str] = match kind {
+        ArtKind::Cover => &["DieselGameBoxTall", "OfferImageTall", "Thumbnail"],
+        ArtKind::Hero => &["DieselGameBox", "OfferImageWide", "DieselStoreFrontWide"],
+    };
+    wanted
+        .iter()
+        .filter_map(|w| images.iter().find(|(t, _)| t == w))
+        .map(|(_, u)| u.clone())
+        .collect()
+}
+
+/// The app id of the store search hit whose name matches exactly.
+pub fn pick_steam_search(v: &Value, name: &str) -> Option<String> {
+    let want = normalize_name(name);
+    v["items"]
+        .as_array()?
+        .iter()
+        .find(|i| {
+            i["name"]
+                .as_str()
+                .is_some_and(|n| normalize_name(n) == want)
+        })
+        .and_then(|i| i["id"].as_u64())
+        .map(|id| id.to_string())
 }
 
 const STEAM_ASSET_BASE: &str = "https://shared.steamstatic.com/store_item_assets/";
@@ -590,6 +766,49 @@ mod tests {
         );
         assert_eq!(store_asset_urls(&item, ArtKind::Hero).len(), 1);
         assert!(store_asset_urls(&json!({"appid": 1}), ArtKind::Cover).is_empty());
+    }
+
+    #[test]
+    fn epic_catalog_images() {
+        use base64::Engine;
+        let json = serde_json::json!([
+            {
+                "id": "4fe75bbc5a674f4f9b356b5c90567da5",
+                "namespace": "fn",
+                "keyImages": [
+                    { "type": "DieselGameBox", "url": "https://cdn1.epicgames.com/wide.jpg" },
+                    { "type": "DieselGameBoxTall", "url": "https://cdn1.epicgames.com/tall.jpg" }
+                ]
+            },
+            { "id": "dlc", "namespace": "fn", "keyImages": [] }
+        ]);
+        let bin = base64::engine::general_purpose::STANDARD.encode(json.to_string());
+        let c = parse_epic_catalog(bin.as_bytes()).unwrap();
+        let id = "fn:4fe75bbc5a674f4f9b356b5c90567da5:Fortnite";
+        assert_eq!(
+            epic_images(&c, id, ArtKind::Cover),
+            vec!["https://cdn1.epicgames.com/tall.jpg"]
+        );
+        assert_eq!(
+            epic_images(&c, id, ArtKind::Hero),
+            vec!["https://cdn1.epicgames.com/wide.jpg"]
+        );
+        // Unknown item id: falls back to the namespace.
+        assert_eq!(epic_images(&c, "fn:other:X", ArtKind::Cover).len(), 1);
+        assert!(epic_images(&c, "zz:none:Y", ArtKind::Cover).is_empty());
+    }
+
+    #[test]
+    fn steam_search_needs_exact_name() {
+        let v = serde_json::json!({ "items": [
+            { "type": "app", "name": "A Way Out Soundtrack", "id": 1 },
+            { "type": "app", "name": "A Way Out™", "id": 1222700 }
+        ]});
+        assert_eq!(
+            pick_steam_search(&v, "A Way Out").as_deref(),
+            Some("1222700")
+        );
+        assert_eq!(pick_steam_search(&v, "Honkai: Star Rail"), None);
     }
 
     #[test]

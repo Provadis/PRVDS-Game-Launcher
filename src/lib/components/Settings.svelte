@@ -64,6 +64,29 @@
     app.toast("Fertig");
   }
 
+  let reloading = $state(false);
+
+  async function reloadAllArt() {
+    if (
+      !confirm(
+        "Cover und Titelbilder aller Spiele neu laden? Offizielle Store-Bilder haben Vorrang. Selbst gewählte Bilder werden dabei ersetzt.",
+      )
+    )
+      return;
+    reloading = true;
+    app.toast(`Lade Bilder für ${app.games.length} Spiele neu …`);
+    let failed = 0;
+    for (const g of app.games) {
+      try {
+        app.upsert(await api.reloadArt(g.id));
+      } catch {
+        failed++;
+      }
+    }
+    reloading = false;
+    app.toast(failed ? `Fertig, ${failed} Spiele ohne neue Bilder` : "Fertig");
+  }
+
   async function checkNow() {
     checking = true;
     try {
@@ -130,9 +153,10 @@
   <form class="panel" onsubmit={save}>
     <h2>Cover und Metadaten</h2>
     <p class="muted">
-      Steam-Spiele bekommen Cover und Infos ohne Key. Für alle anderen Plattformen brauchst du einen kostenlosen
-      SteamGridDB-Key; IGDB liefert zusätzlich Genre, Entwickler und Erscheinungsjahr. Die Keys werden in der
-      Windows-Anmeldeinformationsverwaltung gespeichert.
+      Ohne Key gibt es die offiziellen Store-Bilder: von Steam, von Epic (aus dem installierten Epic Launcher) und
+      für Spiele anderer Launcher, die es auch auf Steam gibt. Für den Rest liefert IGDB die offizielle Box-Art samt
+      Genre, Entwickler und Erscheinungsjahr, SteamGridDB springt ein, wo sonst nichts gefunden wird. Die Keys werden
+      in der Windows-Anmeldeinformationsverwaltung gespeichert.
     </p>
     <label>
       <span>SteamGridDB API-Key</span>
@@ -151,6 +175,7 @@
     <div class="row">
       <button class="btn primary" type="submit" disabled={saving}>{saving ? "Speichert …" : "Speichern"}</button>
       <button class="btn" type="button" onclick={refetchMissing}><Icon name="refresh" size={16} />Fehlende Cover und Infos laden</button>
+      <button class="btn" type="button" onclick={reloadAllArt} disabled={reloading}><Icon name="image" size={16} />{reloading ? "Lädt …" : "Alle Cover neu laden"}</button>
     </div>
   </form>
 

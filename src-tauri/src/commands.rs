@@ -853,6 +853,27 @@ pub fn set_art_from_bytes(
     Ok(updated)
 }
 
+/// Replaces cover and hero with the best art found now (official store art
+/// first). Images nothing was found for stay as they are.
+#[tauri::command]
+pub async fn reload_art(app: AppHandle, id: i64) -> CmdResult<Game> {
+    blocking(move || {
+        let state = app.state::<AppState>();
+        let game = state.lib.lock().unwrap().game(id).map_err(err)?;
+        let mut updated = game.clone();
+        for kind in [ArtKind::Cover, ArtKind::Hero] {
+            if let Some(o) = state.art.best(&game, kind)
+                && let Ok(path) = download_art(&state, &game, kind, &o.url)
+            {
+                updated = apply_art(&state, id, kind, path)?;
+            }
+        }
+        let _ = app.emit("game-updated", updated.clone());
+        Ok(updated)
+    })
+    .await
+}
+
 /// Reloads metadata and fills in missing images.
 #[tauri::command]
 pub async fn refresh_metadata(app: AppHandle, id: i64) -> CmdResult<Game> {
