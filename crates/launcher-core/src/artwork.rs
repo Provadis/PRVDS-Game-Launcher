@@ -394,8 +394,9 @@ impl ArtClient {
             .map(|g| igdb_metadata(&g))
     }
 
-    /// Downloads an image to `dest`.
-    pub fn download(&self, url: &str, dest: &Path) -> Result<()> {
+    /// Downloads an image to `dest`, scaled down to a sensible size for
+    /// `kind` (see [`fit_image`]).
+    pub fn download(&self, url: &str, dest: &Path, kind: ArtKind) -> Result<()> {
         let resp = self.http.get(url).send()?.error_for_status()?;
         let is_image = resp
             .headers()
@@ -409,9 +410,64 @@ impl ArtClient {
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent).ctx(parent)?;
         }
+        let bytes = fit_image(&bytes, dest, kind).unwrap_or_else(|| bytes.to_vec());
         std::fs::write(dest, &bytes).ctx(dest)?;
         Ok(())
     }
+}
+
+/// Scales down an already stored image in place if it is larger than
+/// needed (covers saved before downscaling existed). Returns whether it
+/// changed.
+pub fn shrink_file(path: &Path, kind: ArtKind) -> bool {
+    let (max_w, max_h) = max_size(kind);
+    match image::image_dimensions(path) {
+        Ok((w, h)) if w > max_w || h > max_h => {}
+        _ => return false,
+    }
+    let Ok(bytes) = std::fs::read(path) else {
+        return false;
+    };
+    match fit_image(&bytes, path, kind) {
+        Some(out) => std::fs::write(path, out).is_ok(),
+        None => false,
+    }
+}
+
+/// Largest stored size: covers are shown at most ~300 px wide, so twice
+/// that stays sharp on high-DPI screens. Heroes are the big background of
+/// a game's page and keep their full resolution up to 4K.
+fn max_size(kind: ArtKind) -> (u32, u32) {
+    match kind {
+        ArtKind::Cover => (600, 900),
+        ArtKind::Hero => (3840, 2160),
+    }
+}
+
+/// Scales an image down when it is larger than needed. The webview shrinks
+/// very large images (Epic's box art is 1200×1600 and more) poorly, and
+/// they look grainy at cover size; a clean downscale here avoids that.
+/// Returns the re-encoded bytes in the format `dest` asks for, or `None`
+/// to keep the original (small enough, or not decodable, like GIFs).
+pub fn fit_image(bytes: &[u8], dest: &Path, kind: ArtKind) -> Option<Vec<u8>> {
+    use image::ImageFormat;
+    let (max_w, max_h) = max_size(kind);
+    let img = image::load_from_memory(bytes).ok()?;
+    if img.width() <= max_w && img.height() <= max_h {
+        return None;
+    }
+    let img = img.resize(max_w, max_h, image::imageops::FilterType::Lanczos3);
+    let format = ImageFormat::from_path(dest).ok()?;
+    let mut out = std::io::Cursor::new(Vec::new());
+    match format {
+        ImageFormat::Jpeg => {
+            let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 90);
+            img.to_rgb8().write_with_encoder(enc).ok()?;
+        }
+        ImageFormat::Png | ImageFormat::WebP => img.write_to(&mut out, format).ok()?,
+        _ => return None,
+    }
+    Some(out.into_inner())
 }
 
 fn epic_catalog_path() -> Option<PathBuf> {
@@ -796,6 +852,22 @@ mod tests {
         // Unknown item id: falls back to the namespace.
         assert_eq!(epic_images(&c, "fn:other:X", ArtKind::Cover).len(), 1);
         assert!(epic_images(&c, "zz:none:Y", ArtKind::Cover).is_empty());
+    }
+
+    #[test]
+    fn large_images_are_scaled_down() {
+        let big = image::RgbImage::from_pixel(1200, 1600, image::Rgb([200, 40, 90]));
+        let mut png = std::io::Cursor::new(Vec::new());
+        big.write_to(&mut png, image::ImageFormat::Png).unwrap();
+        let out = fit_image(png.get_ref(), Path::new("c.jpg"), ArtKind::Cover).unwrap();
+        let img = image::load_from_memory(&out).unwrap();
+        assert_eq!((img.width(), img.height()), (600, 800));
+        // Small enough already: kept as it is.
+        let small = image::RgbImage::from_pixel(600, 900, image::Rgb([0, 0, 0]));
+        let mut png = std::io::Cursor::new(Vec::new());
+        small.write_to(&mut png, image::ImageFormat::Png).unwrap();
+        assert!(fit_image(png.get_ref(), Path::new("c.png"), ArtKind::Cover).is_none());
+        assert!(fit_image(b"not an image", Path::new("c.jpg"), ArtKind::Cover).is_none());
     }
 
     #[test]
