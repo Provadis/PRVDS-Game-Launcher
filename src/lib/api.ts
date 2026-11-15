@@ -59,6 +59,8 @@ export const api = {
   artOptions: (id: number, kind: ArtKind) => invoke<ArtOption[]>("art_options", { id, kind }),
   setArtFromUrl: (id: number, kind: ArtKind, url: string) => invoke<Game>("set_art_from_url", { id, kind, url }),
   setArtFromFile: (id: number, kind: ArtKind, path: string) => invoke<Game>("set_art_from_file", { id, kind, path }),
+  setArtFromBytes: (id: number, kind: ArtKind, name: string, bytes: Uint8Array) =>
+    invoke<Game>("set_art_from_bytes", { id, kind, name, bytes: Array.from(bytes) }),
   refreshMetadata: (id: number) => invoke<Game>("refresh_metadata", { id }),
   getSettings: () => invoke<Settings>("get_settings"),
   saveKeys: (keys: ArtworkKeys) => invoke<void>("save_keys", { keys }),

@@ -31,6 +31,7 @@
     tag: "M3 12V4h8l10 10-8 8zM7.5 7.5h.01",
     grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
     board: "M3 4h11v7H3zM16 4h5v16h-5zM3 13h11v7H3z",
+    home: "M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5",
     layers: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5",
   };
 

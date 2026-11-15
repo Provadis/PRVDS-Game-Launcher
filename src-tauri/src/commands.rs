@@ -825,6 +825,34 @@ pub fn set_art_from_file(
     Ok(updated)
 }
 
+/// Uses an image dropped into the window. With the window's own file drop
+/// turned off (it would block dragging games inside the app on Windows),
+/// the page only gets the file's bytes, not its path.
+#[tauri::command]
+pub fn set_art_from_bytes(
+    app: AppHandle,
+    state: State<AppState>,
+    id: i64,
+    kind: ArtKind,
+    name: String,
+    bytes: Vec<u8>,
+) -> CmdResult<Game> {
+    const MAX_BYTES: usize = 25 * 1024 * 1024;
+    let game = state.lib.lock().unwrap().game(id).map_err(err)?;
+    let ext = ext_of(&name).to_ascii_lowercase();
+    if !["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str()) {
+        return Err("Bitte eine Bilddatei wählen (PNG, JPG, WEBP)".into());
+    }
+    if bytes.is_empty() || bytes.len() > MAX_BYTES {
+        return Err("Das Bild ist leer oder größer als 25 MB".into());
+    }
+    let dest = art_file(&state, &game, kind, &ext);
+    std::fs::write(&dest, &bytes).map_err(err)?;
+    let updated = apply_art(&state, id, kind, dest.to_string_lossy().into_owned())?;
+    let _ = app.emit("game-updated", updated.clone());
+    Ok(updated)
+}
+
 /// Reloads metadata and fills in missing images.
 #[tauri::command]
 pub async fn refresh_metadata(app: AppHandle, id: i64) -> CmdResult<Game> {

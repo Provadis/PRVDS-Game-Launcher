@@ -14,6 +14,7 @@
   import Toasts from "$lib/components/Toasts.svelte";
   import { checkOnStart } from "$lib/updates";
   import { syncOnStart } from "$lib/launchers";
+  import { openHome } from "$lib/home";
 
   onMount(() => {
     try {
@@ -22,7 +23,10 @@
     } catch {
       // Storage unavailable: keep defaults.
     }
-    app.load().then(syncOnStart).catch((e) => app.error(e));
+    app.load().then(() => {
+      openHome();
+      return syncOnStart();
+    }).catch((e) => app.error(e));
     setTimeout(checkOnStart, 3000);
     const unlisten = [
       listen<Game>("game-updated", (e) => app.upsert(e.payload)),
@@ -66,6 +70,19 @@
     return () => clearTimeout(t);
   });
 </script>
+
+<!-- Files dropped into the window must not open as a page. Only a game's
+     detail page takes them (as cover); everywhere else the drop is refused. -->
+<svelte:window
+  ondragover={(e) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = app.screen.kind === "detail" ? "copy" : "none";
+  }}
+  ondrop={(e) => {
+    if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+  }}
+/>
 
 <div class="app">
   {#if app.screen.kind === "import"}
